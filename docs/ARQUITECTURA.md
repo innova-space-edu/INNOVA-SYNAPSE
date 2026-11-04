@@ -1,22 +1,15 @@
-# Arquitectura — INNOVA SYNAPSE
+# Arquitectura — INNOVA SYNAPSE (Intranet Dell)
 
-## Decisiones
+Next.js 16, React, TypeScript y CodeMirror; LaTeX con FastAPI/TeX Live en contenedor; IA por API con proveedores configurables.
 
-- Interfaz Next.js 16 / React / TypeScript; diseño original inspirado en patrones de editores científicos, sin incorporar código propietario de Prism.
-- Editor CodeMirror; persistencia local IndexedDB para el primer prototipo. **No constituye todavía almacenamiento multiusuario ni copia de seguridad de servidor.**
-- Importación/exportación ZIP LaTeX/BibTeX con archivos de figuras; descarga de PDF compilado.
-- Compilación **fuera** de la aplicación web: API Python y TeX Live en un contenedor restringido, sin shell escape; no exponer la API del compilador a Internet.
-- Proxy de IA server-side con lista fija de proveedores; claves únicamente en variables de entorno del servidor; el resultado se presenta como sugerencia, nunca se modifica el documento automáticamente.
+## Acceso
+Cloudflare Access dedicado, correo administrador exacto, JWT firmado comprobado en Next Proxy y **en cada endpoint privado**; no confiar en una cabecera de rol. Sin configurar team, AUD y lista de admin, la app bloquea la sesión. El enlace desde `/dashboard/empresa` deberá mostrarlo Better Auth solo al admin, pero esta modificación en intranet está pendiente.
 
-## Evolución para producción
+## Persistencia
+PostgreSQL 17 independiente (`synapse_projects`, `synapse_snapshots`, `synapse_pgdata`) almacena contenido, versiones (máximo 20), conversaciones y último PDF. No se reutiliza `intranet-db`. Se incluyen procedimientos de pg_dump y timer systemd, sin instalación automática.
 
-1. Añadir PostgreSQL con modelo `organizations`, `users`, `memberships`, `projects`, `project_files`, `snapshots`, `comments`, `conversations`, `messages`, `compile_jobs`, `audit_log`.
-2. Autenticación real (Better Auth u otro IdP) y control de acceso por recurso en cada endpoint; roles propietario/editor/comentarista/lector; acceso compartido con vencimiento.
-3. Almacenamiento objeto privado S3/MinIO con URLs firmadas y límites por usuario; backups automáticos con restauración comprobada; migración desde IndexedDB.
-4. Habilitar CRDT Yjs + Hocuspocus detrás de autorización por documento para edición en tiempo real; checkpoints persistentes.
-5. Cola de trabajos, aislamiento fuerte de compilación con seccomp/AppArmor, no egress, límites CPU/RAM/tiempo/disco, antivirus de adjuntos, control de tasa y auditoría.
-6. Integraciones bibliográficas (Zotero mediante OAuth, arXiv y Crossref), herramientas de revisión, plantillas y asistencia de voz.
+## Aislamiento
+Compose independiente: `synapse-web` comparte únicamente la red `portal_default` para que el túnel reverse-proxy pueda alcanzarlo; `db` y `compiler` solo comparten la red `internal` de Synapse. Web escucha en localhost:3410 del anfitrión para pruebas, sin puerto público.
 
-## Advertencia
-
-El proyecto actual es una **base funcional de prototipo local**, no una implementación auditada o lista para permitir usuarios externos. No activar despliegue público con las rutas de IA/compilación sin capa de autenticación, rate limiting y cuotas.
+## Alcance no completado
+No hay enlace en la intranet, reglas Cloudflare Access, secretos reales, despliegue Dell o smoke test; tampoco colaboración Yjs, RAG académico ni agentes. Las rutas solo aceptan sesión de administrador verificable. <Mantenimiento futuro>: copia externa cifrada, cuotas IA, aislamiento reforzado de compilación y pruebas restore.
