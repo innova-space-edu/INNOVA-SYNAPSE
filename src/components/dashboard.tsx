@@ -17,7 +17,7 @@ export function Dashboard() {
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
   const refresh = async () => { try { setProjects(await listProjects()); } catch { setError('No fue posible abrir la biblioteca local.'); } finally { setBusy(false); } };
-  useEffect(() => { void refresh(); }, []);
+  useEffect(() => { let alive = true; void listProjects().then(p => { if (alive) setProjects(p); }).catch(() => { if (alive) setError('No fue posible abrir la biblioteca local.'); }).finally(() => { if (alive) setBusy(false); }); return () => { alive = false; }; }, []);
   async function create() {
     const project = newProject('Proyecto sin título');
     await saveProject(project); router.push('/projects/' + project.id);
