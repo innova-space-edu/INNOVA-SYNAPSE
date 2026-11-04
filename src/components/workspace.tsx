@@ -4,13 +4,13 @@ import { useParams, useRouter } from 'next/navigation';
 import CodeMirror from '@uiw/react-codemirror';
 import { StreamLanguage } from '@codemirror/language';
 import { stex } from '@codemirror/legacy-modes/mode/stex';
-import { ArrowLeft, ChevronDown, ChevronRight, ChevronsLeft, Download, FileCode2,
+import { ArrowLeft, Clock3, ChevronDown, ChevronRight, ChevronsLeft, Download, FileCode2,
   FileText, Folder, FolderOpen, Import, Maximize, MoreHorizontal, PanelLeftClose,
   PanelLeftOpen, Play, Plus, Save, Terminal, Trash2, WandSparkles, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { AIChat } from './ai-chat';
-import { loadProject, saveProject } from '@/lib/storage';
+import { loadProject, saveProject, listSnapshots, saveSnapshot } from '@/lib/storage';
 import { exportProjectZip, safePath } from '@/lib/zip';
-import type { CompileResult, SynapseFile, SynapseProject } from '@/lib/types';
+import type { CompileResult, ProjectSnapshot, SynapseFile, SynapseProject } from '@/lib/types';
 
 const latexLanguage = StreamLanguage.define(stex);
 const textExt = /\.(tex|bib|sty|cls|bst|txt|keep)$/i;
@@ -34,6 +34,8 @@ export function Workspace() {
   const [pdfWidth, setPdfWidth] = useState(43);
   const [expandedFolders, setExpandedFolders] = useState<Record<string,boolean>>({});
   const [showLog, setShowLog] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [snapshots, setSnapshots] = useState<ProjectSnapshot[]>([]);
   const [compileMessage, setCompileMessage] = useState('');
   const [zoom, setZoom] = useState(100);
   const [previewFull, setPreviewFull] = useState(false);
@@ -105,11 +107,27 @@ export function Workspace() {
     }
     change(p=>({...p,files:[...p.files,...files]}));
   }
+  async function openHistory() {
+    if (!project) return;
+    if (!showHistory) setSnapshots(await listSnapshots(project.id));
+    setShowHistory(!showHistory);
+  }
+  async function captureSnapshot() {
+    if (!project) return;
+    await saveSnapshot(project);
+    setSnapshots(await listSnapshots(project.id));
+  }
+  function restoreSnapshot(snapshot: ProjectSnapshot) {
+    if (!confirm('¿Restaurar esta versión? Guarda antes una instantánea de los cambios actuales.')) return;
+    change(p => ({...p, mainFile:snapshot.mainFile, files:structuredClone(snapshot.files)}));
+    setActiveFile(snapshot.mainFile); setShowHistory(false);
+  }
   async function compile() {
     if (!project || compiling) return;
     setCompiling(true); setCompileMessage('Compilando documento…'); setShowLog(false);
     try {
       await saveProject(project);
+      await saveSnapshot(project);
       const response = await fetch('/api/compile',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({mainFile:project.mainFile,files:project.files})});
       const data = await response.json() as CompileResult;
@@ -145,6 +163,7 @@ export function Workspace() {
       <div className="work-top-right">
         <span className={'save-indicator '+(status==='error'?'failed':'')}><Save size={14}/>{status==='guardando'?'Guardando…':status==='editado'?'Cambios pendientes':status==='error'?'Error de guardado':'Guardado local'}</span>
         <button className="toolbar-button" onClick={()=>void exportProjectZip(project)}><Download size={16}/> Exportar ZIP</button>
+        <button className="toolbar-button" onClick={()=>void openHistory()}><Clock3 size={16}/> Historial</button>
         <button className="toolbar-button" onClick={()=>setShowLog(!showLog)}><Terminal size={16}/> Registro</button>
         <button className="compile-button" onClick={()=>void compile()} disabled={compiling}><Play size={15} fill="currentColor"/>{compiling?'Compilando…':'Compilar PDF'}</button>
       </div>
@@ -177,7 +196,7 @@ export function Workspace() {
             {active?.encoding === 'utf8' ? <CodeMirror value={active.content} height="100%" theme="dark" extensions={[latexLanguage]} onChange={updateContent} basicSetup={{lineNumbers:true,foldGutter:true,highlightActiveLine:true,bracketMatching:true,closeBrackets:true}}/>
               : <div className="binary-preview"><FileText size={35}/><h3>{activeFile}</h3><p>Archivo de recurso binario. Se incluirá en la compilación y exportación ZIP.</p></div>}
           </div>
-          <AIChat source={active?.encoding==='utf8'?active.content:''} onApply={updateContent}/>
+          <AIChat source={active?.encoding==='utf8'?active.content:''} initialMessages={project.chats || []} onMessagesChange={messages=>change(p=>({...p,chats:messages}))} onApply={updateContent}/>
         </div>}
         {!previewFull && <div className="drag-handle" onMouseDown={e=>startResize('preview',e)} title="Redimensionar PDF"/>}
         <section className="pdf-panel" style={previewFull?{flex:1}:{width:pdfWidth+'%'}}>
@@ -199,6 +218,15 @@ export function Workspace() {
           {showLog && <div className="compile-log"><div><b>Registro de compilación</b><button className="icon-button" onClick={()=>setShowLog(false)}><X size={15}/></button></div><pre>{compileMessage + '\n\n' + (project.lastLog || 'Sin registro de compilación anterior.')}</pre></div>}
         </section>
       </main>
+      {showHistory && <aside className="history-drawer">
+        <header><b><Clock3 size={16}/> Versiones locales</b><button className="icon-button" onClick={()=>setShowHistory(false)} aria-label="Cerrar historial"><X size={17}/></button></header>
+        <p>Hasta 20 instantáneas por proyecto. Al compilar se guarda una versión de las fuentes.</p>
+        <button className="pill primary" onClick={()=>void captureSnapshot()}><Plus size={15}/> Guardar instantánea</button>
+        <div className="history-items">{snapshots.map(snapshot=><div key={snapshot.id} className="history-item">
+          <span><b>{new Date(snapshot.createdAt).toLocaleString('es-CL')}</b><small>{snapshot.files.length} archivos</small></span>
+          <button onClick={()=>restoreSnapshot(snapshot)}>Restaurar</button>
+        </div>)}{snapshots.length===0&&<p>Aún no hay instantáneas.</p>}</div>
+      </aside>}
     </div>
   </div>;
 
