@@ -16,6 +16,16 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+  intranet-compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cp .env.intranet.example .env
+      - name: Validate independent intranet Docker Compose
+        env:
+          SYNAPSE_DB_PASSWORD: dummy-ci-db-password
+          LATEX_COMPILER_TOKEN: dummy-ci-compile-token
+        run: docker compose -f compose.intranet.yaml config --quiet
   compiler:
     runs-on: ubuntu-latest
     steps:

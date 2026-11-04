@@ -1,0 +1,12 @@
+.git
+.github
+node_modules
+.next
+.env
+.env.*
+!.env.example
+*.log
+coverage
+backups
+*.sql.gz
+.DS_Store

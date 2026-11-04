@@ -51,7 +51,7 @@ export function Dashboard() {
           <button className={section === 'mine' ? 'nav-active' : ''} onClick={() => setSection('mine')}><BookOpenText size={17}/> Tus proyectos</button>
           <button className={section === 'shared' ? 'nav-active' : ''} onClick={() => setSection('shared')}><Users size={17}/> Compartido contigo <span className="soon">Próx.</span></button>
         </nav>
-        <div className="sidebar-footer"><div className="avatar">I</div><div>Espacio personal <small>Almacenamiento local</small></div></div>
+        <div className="sidebar-footer"><div className="avatar">I</div><div>Espacio personal <small>Almacenamiento privado en Dell</small></div></div>
       </aside>
       <main className="home-main">
         <header className="home-header">

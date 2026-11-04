@@ -1,44 +1,33 @@
-import { openDB } from 'idb';
 import type { SynapseProject, ProjectSnapshot } from './types';
 
-const DB = 'innova-synapse-v1';
-const STORE = 'projects';
-const SNAPSHOTS = 'snapshots';
-function database() {
-  if (typeof indexedDB === 'undefined') throw new Error('IndexedDB no disponible en este navegador');
-  return openDB(DB, 2, {
-    upgrade(db) { if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: 'id' }); if (!db.objectStoreNames.contains(SNAPSHOTS)) db.createObjectStore(SNAPSHOTS, { keyPath: 'id' }); }
-  });
+async function api<T>(path: string, options?: RequestInit): Promise<T> {
+  const res = await fetch(path, { ...options, cache: 'no-store', credentials: 'same-origin',
+    headers: { 'Content-Type':'application/json', ...options?.headers } });
+  if (!res.ok) {
+    let message = 'Error del servidor SYNAPSE ('+res.status+')';
+    try { const data = await res.json(); if (typeof data.error === 'string') message = data.error; } catch {}
+    throw new Error(message);
+  }
+  return await res.json() as T;
 }
 export async function listProjects(): Promise<SynapseProject[]> {
-  const db = await database();
-  return (await db.getAll(STORE) as SynapseProject[])
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  return api<SynapseProject[]>('/api/projects');
 }
 export async function loadProject(id: string): Promise<SynapseProject | undefined> {
-  const db = await database();
-  return db.get(STORE, id) as Promise<SynapseProject | undefined>;
+  try { return await api<SynapseProject>('/api/projects/' + encodeURIComponent(id)); }
+  catch (error) { if (error instanceof Error && error.message.includes('404')) return undefined; throw error; }
 }
 export async function saveProject(project: SynapseProject): Promise<void> {
-  const db = await database();
-  await db.put(STORE, { ...project, updatedAt: new Date().toISOString() });
+  await api('/api/projects/' + encodeURIComponent(project.id),
+    { method: 'PUT', body: JSON.stringify(project) });
 }
 export async function deleteProject(id: string): Promise<void> {
-  const db = await database();
-  await db.delete(STORE, id);
+  await api('/api/projects/' + encodeURIComponent(id), { method:'DELETE' });
 }
-
 export async function listSnapshots(projectId: string): Promise<ProjectSnapshot[]> {
-  const db = await database();
-  return (await db.getAll(SNAPSHOTS) as ProjectSnapshot[]).filter(s => s.projectId === projectId)
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return api<ProjectSnapshot[]>('/api/projects/' + encodeURIComponent(projectId) + '/snapshots');
 }
 export async function saveSnapshot(project: SynapseProject): Promise<ProjectSnapshot> {
-  const db = await database();
-  const snapshot: ProjectSnapshot = { id: crypto.randomUUID(), projectId: project.id, name: project.name,
-    createdAt: new Date().toISOString(), mainFile: project.mainFile, files: structuredClone(project.files) };
-  await db.put(SNAPSHOTS, snapshot);
-  const existing = await listSnapshots(project.id);
-  for (const old of existing.slice(20)) await db.delete(SNAPSHOTS, old.id);
-  return snapshot;
+  return api<ProjectSnapshot>('/api/projects/' + encodeURIComponent(project.id) + '/snapshots',
+    { method:'POST', body: JSON.stringify({ name: project.name, mainFile: project.mainFile, files: project.files }) });
 }

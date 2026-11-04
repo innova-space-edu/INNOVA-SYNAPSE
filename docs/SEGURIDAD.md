@@ -1,10 +1,10 @@
-# Modelo de amenazas mínimo
+# Seguridad SYNAPSE — Controles y límites
 
-- **Archivos LaTeX no confiables**: ejecución de comandos y lecturas de archivos. Compilador con `-no-shell-escape`, identidad no privilegiada, sistema solo lectura, límites de recursos y sin puerto público. No es una frontera suficiente por sí sola: desplegar microVM/aislamiento reforzado antes de uso público.
-- **Exposición de API keys**: nunca incluir secretos en el frontend, logs o repositorio; rotar claves comprometidas, configurar únicamente entornos del servidor.
-- **Prompts y contenidos no confiables**: texto de papers o LaTeX es dato, no instrucciones privilegiadas; respuesta IA solo como sugerencia revisable.
-- **Control de acceso**: versión MVP no implementa autenticación ni cuota. Ejecutar solo en red controlada; añadir autorización sobre todos los recursos antes de publicación.
-- **Persistencia**: IndexedDB depende del navegador/perfil; exportar ZIP con frecuencia; no hay respaldo remoto todavía.
-- **ZIP**: límite de cantidad/tamaño en importación; ignorar rutas absolutas o traversal; no ejecutar contenido del ZIP.
-- **Privacidad**: PDFs y textos enviados a proveedores IA externos solo tras acción del usuario; crear política/retención y consentimiento cuando corresponda.
-- **CSP, HTTPS, anti-CSRF, rate limiting, DoS y auditoría**: requisitos de producción no implementados en la base inicial.
+- Verificación en origen de `Cf-Access-Jwt-Assertion` mediante JWKS Cloudflare, `iss`, `aud`, firma y correo exacto de `SYNAPSE_ADMIN_EMAILS`. Ninguna sesión confiable sin identidad válida.
+- Next.js Proxy bloquea navegación; las API de proyectos, versiones, compilación e IA validan otra vez. `SYNAPSE_LOCAL_DEV` solo funciona en modo desarrollo y localhost.
+- Contenedores separados, compilador no privilegiado y sin salida a red, límites de memoria/CPU/PIDs, `-no-shell-escape` y timeout.
+- Passwords y API keys solo en `.env` del Dell, permisos 0600 y exclusión mediante `.dockerignore`. No publicarlos en logs ni Git.
+- Base de datos privada, volumen dedicado y backups con pg_dump; timer pendiente de activación.
+- Cloudflare Access debe incluir email exacto y autenticación segura; permitir solo OTP sin filtro de correo es inseguro.
+- **Pendientes:** rate limiting/alerta de costos IA, CSRF y revisión de Origin para acciones sensibles, aislamiento microVM del compilador frente a LaTeX malicioso, almacenamiento de objetos para PDFs grandes, restauración de backup verificada.
+- No exponer 3410, 5432 ni 8000 públicamente; no usar la app con usuarios ajenos hasta completar el aislamiento.

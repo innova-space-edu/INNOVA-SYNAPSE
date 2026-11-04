@@ -1,0 +1,13 @@
+[Unit]
+Description=Backup INNOVA SYNAPSE PostgreSQL (separate database)
+Wants=docker.service
+After=docker.service
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /srv/intranet/synapse/scripts/backup-synapse.sh
+User=root
+Group=root
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/srv/intranet/backups/synapse
+ReadOnlyPaths=/srv/intranet/synapse
