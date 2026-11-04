@@ -4,7 +4,7 @@ Plataforma independiente de investigación y escritura científica, basada en fu
 
 ## Estado: prototipo inicial
 
-Interfaz oscura siguiendo las capturas de referencia: dashboard de proyectos, explorador de archivos, editor LaTeX CodeMirror, visor PDF y chat contextual con IA. Guardado automático local (IndexedDB); importación/exportación ZIP. Los servicios de compilación e IA requieren configuración. La colaboración, cuentas, permisos y respaldo remoto aún no están implementados.
+Interfaz oscura siguiendo las capturas de referencia: dashboard de proyectos, explorador de archivos, editor LaTeX CodeMirror, visor PDF y chat contextual con IA. Guardado automático local (IndexedDB), instantáneas restaurables y conversaciones IA persistentes; importación/exportación ZIP. Los servicios de compilación e IA requieren configuración. La colaboración, cuentas, permisos y respaldo remoto aún no están implementados.
 
 ## Comenzar
 
@@ -29,10 +29,10 @@ La aplicación web se publica **solo en 127.0.0.1:3000** en Compose por defecto.
 ## Características del MVP
 
 - Crear, buscar, duplicar, renombrar y eliminar proyectos.
-- Editor de múltiples archivos con árbol lateral, paneles redimensionables, autoguardado en IndexedDB y modo oscuro.
+- Editor de múltiples archivos con árbol lateral, paneles redimensionables, autoguardado en IndexedDB, hasta 20 instantáneas locales y modo oscuro.
 - Importar ZIP con `.tex`, `.bib`, `.sty`, `.cls` e imágenes, y exportar el proyecto a ZIP.
 - PDF después de compilar en contenedor de TeX Live; log de errores y descarga.
-- Chat contextual con claves de Gemini, OpenAI, Groq, OpenRouter, SambaNova, Cerebras o Together API. No se inventan modelos: cada proveedor requiere `*_MODEL`.
+- Chat contextual persistente por proyecto local con claves de Gemini, OpenAI, Groq, OpenRouter, SambaNova, Cerebras o Together API. No se inventan modelos: cada proveedor requiere `*_MODEL`.
 - La IA sugiere revisiones: el editor no cambia automáticamente sin confirmación.
 
 ## Módulos planeados (no listos)
