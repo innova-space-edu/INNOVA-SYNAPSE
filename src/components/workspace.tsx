@@ -4,9 +4,9 @@ import { useParams, useRouter } from 'next/navigation';
 import CodeMirror from '@uiw/react-codemirror';
 import { StreamLanguage } from '@codemirror/language';
 import { stex } from '@codemirror/legacy-modes/mode/stex';
-import { ArrowLeft, Bot, Check, ChevronDown, ChevronRight, ChevronsLeft, Download, FileCode2,
-  FilePlus2, FileText, Folder, FolderOpen, Import, Maximize, MoreHorizontal, PanelLeftClose,
-  PanelLeftOpen, Play, Plus, Save, Settings, Terminal, Trash2, WandSparkles, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronRight, ChevronsLeft, Download, FileCode2,
+  FileText, Folder, FolderOpen, Import, Maximize, MoreHorizontal, PanelLeftClose,
+  PanelLeftOpen, Play, Plus, Save, Terminal, Trash2, WandSparkles, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { AIChat } from './ai-chat';
 import { loadProject, saveProject } from '@/lib/storage';
 import { exportProjectZip, safePath } from '@/lib/zip';
@@ -20,11 +20,6 @@ function toBase64(buffer: ArrayBuffer): string {
   let binary = '';
   for (let i=0; i<bytes.length; i+=8192) binary += String.fromCharCode(...bytes.slice(i,i+8192));
   return btoa(binary);
-}
-function pdfUrl(pdf?: string): string | undefined {
-  if (!pdf) return undefined;
-  const binary = atob(pdf); const bytes = Uint8Array.from(binary, c => c.charCodeAt(0));
-  return URL.createObjectURL(new Blob([bytes], {type:'application/pdf'}));
 }
 export function Workspace() {
   const router = useRouter();
@@ -41,10 +36,10 @@ export function Workspace() {
   const [showLog, setShowLog] = useState(false);
   const [compileMessage, setCompileMessage] = useState('');
   const [zoom, setZoom] = useState(100);
-  const [pdfLink, setPdfLink] = useState<string>();
   const [previewFull, setPreviewFull] = useState(false);
   const [workspaceError, setWorkspaceError] = useState('');
   const active = project?.files.find(f => f.path === activeFile);
+  const pdfLink = project?.lastPdf ? 'data:application/pdf;base64,' + project.lastPdf : undefined;
   const folders = useMemo(() => [...new Set((project?.files || []).filter(f => f.path.includes('/')).map(f => f.path.split('/')[0]))].sort(), [project]);
 
   useEffect(() => {
@@ -59,16 +54,9 @@ export function Workspace() {
 
   useEffect(() => {
     if (!project) return;
-    setStatus('guardando');
     const id = window.setTimeout(() => saveProject(project).then(() => setStatus('guardado')).catch(() => setStatus('error')), 650);
     return () => window.clearTimeout(id);
   }, [project]);
-
-  useEffect(() => {
-    const link = pdfUrl(project?.lastPdf);
-    setPdfLink(link);
-    return () => { if (link) URL.revokeObjectURL(link); };
-  }, [project?.lastPdf]);
 
   const change = useCallback((update: (old:SynapseProject)=>SynapseProject) => {
     setProject(old => old ? update(old) : old);
