@@ -20,11 +20,12 @@ Abrir `http://localhost:3000`. Para compilar archivos LaTeX es necesario levanta
 ```bash
 cp .env.example .env
 # Establecer LATEX_COMPILER_TOKEN con un token aleatorio largo
+# Si trabajas exclusivamente en localhost, habilita SYNAPSE_ENABLE_DEMO_APIS=true
 # y, si se desea IA, configurar las claves y modelos propios.
 docker compose up --build
 ```
 
-La aplicación web se publica **solo en 127.0.0.1:3000** en Compose por defecto. No publicar el servicio de compilación.
+La aplicación web se publica **solo en 127.0.0.1:3000** en Compose por defecto. Las rutas de IA/compilación están deshabilitadas salvo que se establezca `SYNAPSE_ENABLE_DEMO_APIS=true`. Usar esta opción **únicamente en un entorno local controlado**. No publicar el compilador ni activar rutas de demostración en Vercel o Internet sin autenticación y cuotas.
 
 ## Características del MVP
 
