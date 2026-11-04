@@ -1,57 +1,64 @@
-# INNOVA SYNAPSE — Editor científico privado
+# INNOVA SYNAPSE — investigación científica autohospedada
 
-Aplicación independiente de OpenAI Prism para LaTeX, investigación científica, PDF e IA. No incorpora código privado de OpenAI.
+Editor de documentos LaTeX y plataforma de investigación científica independiente, inspirado visualmente en el flujo de Prism. No contiene código privado de Prism.
 
-## Modo intranet (en desarrollo; aún NO instalado)
+## Alojamiento elegido: servidor Dell de Innova Space Education
 
-Se prepara para funcionar como **sesión administrativa separada** de la intranet Innova Space Education, con el hostname previsto `synapse.innova-space-edu.cl`.
+**INNOVA SYNAPSE se alojará directamente en nuestro servidor Debian**, dentro de la infraestructura de intranet. No se requiere una plataforma de alojamiento web externa. El código principal, los proyectos y su compilación permanecen en el Dell.
 
-- **Acceso:** Cloudflare Zero Trust Access (aplicación dedicada, correo admin exacto, OTP/IdP). El backend verifica el JWT firmado, emisor, audiencia y email permitido en cada ruta privada. Sin configuración, deniega todo.
-- **Persistencia:** PostgreSQL propio, `synapse_pgdata`, proyecto y versiones, chat y último PDF. No usa `intranet-db` ni la sesión Better Auth de la intranet.
-- **Servidor:** Docker Compose en `/srv/intranet/synapse`; web en `127.0.0.1:3410` y en la red compartida `portal_default`, compilador y base en red privada; reinicios automáticos.
-- **Integración:** crear enlace **INNOVA SYNAPSE** dentro de `/dashboard/empresa` solo para el rol `admin`, sin alterar permisos del portal. El enlace todavía no se ha instalado.
-- **Backups:** script `scripts/backup-synapse.sh` y timer systemd en `ops/systemd`, todavía no activados ni probados en Dell.
+| Componente | Dónde funciona |
+| --- | --- |
+| Next.js 16 y editor web | `synapse-web` (Docker en Dell) |
+| PostgreSQL 17 | `synapse-db`, volumen independiente `synapse_pgdata` |
+| LaTeX / PDF | `synapse-compiler` con TeX Live |
+| Entrada web | Cloudflare Tunnel ya existente, como nueva ruta protegida |
+| Autorización | Cloudflare Access JWT verificado por SYNAPSE y correo administrador |
+| Menú administrativo | Enlace pendiente en la intranet actual |
 
-## Funciones existentes
+La instalación no comparte base de datos con el portal ni tiene permisos para modificar SUU o MaleCNS.
 
-Panel oscuro de proyectos, explorador **Archivos / Conversaciones**, CodeMirror LaTeX, PDF lateral y descarga, ZIP de archivos, compilación aislada con TeX Live, chat IA opcional (Gemini, Groq, OpenRouter, OpenAI, SambaNova, Cerebras, Together), guardado en servidor y snapshots.
+### Instalación
 
-**Limitaciones:** no hay colaboración Yjs, comentarios, Zotero/arXiv, voz, OCR, MFA adicional a la política Access o un panel de cuotas de IA. Falta probar la compilación en Docker y comprobar el funcionamiento en la infraestructura real.
+Sigue la guía completa: **[INSTALACION-DELL.md](docs/INSTALACION-DELL.md)**.
 
-## Preparación en Dell (solo con acceso autorizado)
+El procedimiento copia el repositorio entero a `/srv/intranet/synapse` mediante Git, crea las claves localmente en Debian, ejecuta preflight y construye tres contenedores.
 
 ```bash
-ssh estefano@100.90.202.99
-sudo mkdir -p /srv/intranet/synapse /srv/intranet/backups/synapse
-sudo chown "$USER":"$USER" /srv/intranet/synapse
+sudo install -d -m 0750 -o "$(id -un)" -g "$(id -gn)" /srv/intranet/synapse
 git clone https://github.com/innova-space-edu/INNOVA-SYNAPSE.git /srv/intranet/synapse
 cd /srv/intranet/synapse
-cp .env.intranet.example .env
-chmod 600 .env
-# Editar .env con los secretos generados EN EL SERVIDOR, Access AUD, team y correo autorizado.
-docker compose -f compose.intranet.yaml config --quiet
-docker compose -f compose.intranet.yaml up -d --build
-bash scripts/check-synapse.sh
+bash scripts/deploy-dell.sh prepare
+# Configurar únicamente en el Dell el correo admin, Team Domain y AUD de Cloudflare Access en .env
+bash scripts/deploy-dell.sh preflight
+bash scripts/deploy-dell.sh deploy
+bash scripts/smoke-compiler.sh
 ```
 
-**No ejecutes un despliegue sin verificar los valores de Access y la política del túnel.** El MCP Dell actual admite diagnósticos, pero no está habilitado para instalar SYNAPSE en el anfitrión.
+**Estado:** preparación de despliegue en código. Todavía no se ha copiado el repositorio al directorio del anfitrión, iniciado el stack en producción, configurado la ruta web ni añadido el enlace al menú. El conector Dell no tiene permiso para hacerlo por sí mismo actualmente.
 
-### Desarrollo local
+## Funcionalidades
+
+Dashboard y búsqueda de proyectos, importación/exportación ZIP, editor LaTeX multiarchivo CodeMirror, panel de Archivos/Conversaciones, visor PDF, compilación TeX Live, chat contextual con API keys opcionales de proveedores de IA, guardado en PostgreSQL y snapshots restaurables. No incluye todavía colaboración en tiempo real, Zotero/arXiv, OCR de ecuaciones ni voz.
+
+## Más documentación
+
+- [Guía de instalación Dell](docs/INSTALACION-DELL.md)
+- [Seguridad](docs/SEGURIDAD.md)
+- [Arquitectura](docs/ARQUITECTURA.md)
+- [Integración con panel administrativo](docs/INTRANET-ADMIN.md)
+- [Matriz de funcionalidades](docs/PRISM-MATRIZ.md)
+- [Migración de documentos](docs/MIGRACION-PRISM.md)
+
+## Pruebas
 
 ```bash
 npm install
-# disponer de PostgreSQL SYNAPSE y aplicar db/001-initial.sql
-# .env.local: SYNAPSE_LOCAL_DEV=true + SYNAPSE_DATABASE_URL=...
-npm run dev -- --hostname 127.0.0.1
+npm run typecheck
+npm run lint
+npm test
+npm run build
+python3 -m unittest discover -s compiler -p 'test_*.py'
+bash -n scripts/deploy-dell.sh scripts/check-synapse.sh scripts/smoke-compiler.sh
 ```
 
-## Documentación
-
-- [Administración e integración a Dell](docs/INTRANET-ADMIN.md)
-- [Arquitectura](docs/ARQUITECTURA.md)
-- [Seguridad](docs/SEGURIDAD.md)
-- [Matriz de funcionalidades de Prism](docs/PRISM-MATRIZ.md)
-- [Hoja de ruta](docs/HOJA-DE-RUTA.md)
-- [Migración desde Prism](docs/MIGRACION-PRISM.md)
-
-**Estado:** código en revisión. El dominio y enlace administrativo no están publicados.
+Se requieren además pruebas funcionales reales de Docker, compilación, autenticación y restauración antes de considerar completada la publicación.

@@ -16,6 +16,7 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+
   intranet-compose:
     runs-on: ubuntu-latest
     steps:
@@ -26,6 +27,28 @@ jobs:
           SYNAPSE_DB_PASSWORD: dummy-ci-db-password
           LATEX_COMPILER_TOKEN: dummy-ci-compile-token
         run: docker compose -f compose.intranet.yaml config --quiet
+      - name: Validate Dell installation shell scripts
+        run: bash -n scripts/deploy-dell.sh scripts/check-synapse.sh scripts/smoke-compiler.sh scripts/backup-synapse.sh
+
+  selfhost-web-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the real standalone web container
+        run: docker build -t synapse-web-smoke:ci .
+      - name: Run web origin with read-only filesystem
+        run: |
+          docker run -d --name synapse-web-smoke --read-only --cap-drop ALL --security-opt no-new-privileges \
+            --tmpfs /tmp:rw,nosuid,noexec,size=64m \
+            --tmpfs /app/.next/cache:rw,nosuid,nodev,size=128m,uid=1000,gid=1000 \
+            -p 127.0.0.1:3420:3000 synapse-web-smoke:ci
+          for i in $(seq 1 35); do
+            if curl --fail --silent --show-error http://127.0.0.1:3420/api/health; then exit 0; fi
+            sleep 2
+          done
+          docker logs synapse-web-smoke
+          exit 1
+
   compiler:
     runs-on: ubuntu-latest
     steps:
