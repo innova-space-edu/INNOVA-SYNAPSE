@@ -15,6 +15,8 @@ Referencia de interfaz: capturas suministradas por el titular (dashboard oscuro,
 | Citas y búsqueda en Crossref/Zotero/arXiv | Pendiente |
 | Múltiples usuarios, espacios, compartir y permisos | Pendiente, requiere backend autenticado |
 | Colaboración CRDT en tiempo real y comentarios | Pendiente |
+| Instantáneas locales (máx. 20) y restauración | MVP implementado |
+| Conversaciones IA persistentes en proyecto local | MVP implementado |
 | Historial remoto, auditoría, revisión por pares | Pendiente |
 | OCR de fórmulas, diagramas, voz y agentes multiarchivo | Pendiente |
 | Exportación de datos de chat Prism y migración integral | Pendiente: solo se admiten fuentes ZIP |
