@@ -25,6 +25,7 @@ export function Workspace() {
   const router = useRouter();
   const params = useParams<{id:string}>();
   const uploadRef = useRef<HTMLInputElement>(null);
+  const saveQueue = useRef<Promise<void>>(Promise.resolve());
   const [project, setProject] = useState<SynapseProject | null>(null);
   const [activeFile, setActiveFile] = useState('main.tex');
   const [status, setStatus] = useState<'cargando'|'editado'|'guardando'|'guardado'|'error'>('cargando');
@@ -57,11 +58,33 @@ export function Workspace() {
 
   useEffect(() => {
     if (!project) return;
-    const id = window.setTimeout(() => saveProject(project).then(() => setStatus('guardado')).catch(() => setStatus('error')), 650);
+    const id = window.setTimeout(() => {
+      saveQueue.current = saveQueue.current.catch(() => undefined).then(() => saveProject(project));
+      void saveQueue.current.then(() => setStatus('guardado')).catch(() => setStatus('error'));
+    }, 650);
     return () => window.clearTimeout(id);
   }, [project]);
 
-  const change = useCallback((update: (old:SynapseProject)=>SynapseProject) => {
+  useEffect(() => {
+    const warn = (event: BeforeUnloadEvent) => {
+      if (status === 'editado' || status === 'guardando') { event.preventDefault(); event.returnValue = ''; }
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [status]);
+
+  async function exitWorkspace() {
+    if (!project) return;
+    try {
+      await saveQueue.current;
+      await saveProject(project);
+      router.push('/');
+    } catch {
+      setStatus('error');
+      alert('No se pudo guardar en el servidor. Exporta primero el ZIP y revisa tu conexión.');
+    }
+  }
+    const change = useCallback((update: (old:SynapseProject)=>SynapseProject) => {
     setProject(old => old ? update(old) : old);
     setStatus('editado');
   }, []);
@@ -155,14 +178,14 @@ export function Workspace() {
   return <div className="workspace">
     <header className="work-topbar">
       <div className="work-top-left">
-        <button className="icon-button" onClick={() => router.push('/')} title="Todos los proyectos"><ArrowLeft size={19}/></button>
+        <button className="icon-button" onClick={() => void exitWorkspace()} title="Guardar y volver a todos los proyectos"><ArrowLeft size={19}/></button>
         <div className="mini-logo"><WandSparkles size={19}/></div>
         <span className="divider-vertical"/>
         <button className="project-selector" onClick={() => {const n=prompt('Nombre del proyecto:',project.name)?.trim();if(n)change(p=>({...p,name:n}));}}>{project.name}<ChevronDown size={15}/></button>
         <button className="icon-button" onClick={()=>setShowTree(!showTree)} title={showTree?'Ocultar archivos':'Mostrar archivos'}>{showTree?<PanelLeftClose size={17}/>:<PanelLeftOpen size={17}/>}</button>
       </div>
       <div className="work-top-right">
-        <span className={'save-indicator '+(status==='error'?'failed':'')}><Save size={14}/>{status==='guardando'?'Guardando…':status==='editado'?'Cambios pendientes':status==='error'?'Error de guardado':'Guardado local'}</span>
+        <span className={'save-indicator '+(status==='error'?'failed':'')}><Save size={14}/>{status==='guardando'?'Guardando…':status==='editado'?'Cambios pendientes':status==='error'?'Error de guardado':'Guardado en servidor'}</span>
         <button className="toolbar-button" onClick={()=>void exportProjectZip(project)}><Download size={16}/> Exportar ZIP</button>
         <button className="toolbar-button" onClick={()=>void openHistory()}><Clock3 size={16}/> Historial</button>
         <button className="toolbar-button" onClick={()=>setShowLog(!showLog)}><Terminal size={16}/> Registro</button>
@@ -187,7 +210,7 @@ export function Workspace() {
           </div>)}
           {project.files.filter(f=>!f.path.includes('/')&&!f.path.endsWith('.keep')).map(f=>renderFile(f,false))}
         </div>:<div className="conversation-list"><p>Historial de conversación del proyecto</p>{(project.chats||[]).length===0?<span className="muted tiny">Todavía no hay mensajes. Utiliza el asistente situado debajo del editor.</span>:(project.chats||[]).map((m,i)=><div key={i} className="conversation-snippet"><b>{m.role==='assistant'?'SYNAPSE':'Tú'}</b><span>{m.content.slice(0,180)}</span></div>)}</div>}
-        <div className="file-panel-bottom"><b>INNOVA SYNAPSE</b><span>Documentos locales · MVP</span></div>
+        <div className="file-panel-bottom"><b>INNOVA SYNAPSE</b><span>Documentos privados · Dell</span></div>
       </aside>}
       {showTree && <div className="drag-handle" onMouseDown={e=>startResize('tree',e)} title="Redimensionar explorador"/>}
       <main className={'work-panels '+(previewFull?'pdf-full':'')}>
