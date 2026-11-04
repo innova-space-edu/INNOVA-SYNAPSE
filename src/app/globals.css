@@ -16,3 +16,12 @@
 .history-item span{display:flex;flex-direction:column;gap:5px}.history-item b{font-size:11px}.history-item small{font-size:10px;color:#92929b}
 .history-item button{padding:7px;border:1px solid #666076;background:#383146;border-radius:7px;font-size:11px}
 .history-items>p{font-size:12px;color:#999}
+
+.file-tabs{display:flex;align-items:center;gap:10px;align-self:stretch}
+.file-tabs button{font-size:12px;font-weight:500;background:transparent;border:0;border-bottom:2px solid transparent;padding:0 1px;color:#9999a4}
+.file-tabs button.selected{border-bottom-color:#b8a3f5;color:#fff}
+.conversation-list{padding:13px;overflow:auto;display:flex;flex-direction:column;gap:9px;flex:1}
+.conversation-list>p{color:#9f9fa9;font-size:11px;margin:0 0 7px}
+.conversation-snippet{border:1px solid #37373e;border-radius:9px;padding:10px;display:flex;flex-direction:column;gap:6px;background:#1e1e23}
+.conversation-snippet b{font-size:10px;color:#c4b6ef}
+.conversation-snippet span{font-size:11px;line-height:1.5;color:#d0ced8;overflow-wrap:anywhere}
