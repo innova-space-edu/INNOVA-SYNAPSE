@@ -9,7 +9,7 @@ cmd="${1:-help}"
 
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 check_tools() {
-  for tool in docker python3 git; do command -v "$tool" >/dev/null || die "Falta $tool"; done
+  for tool in docker python3 git curl; do command -v "$tool" >/dev/null || die "Falta $tool"; done
   docker info >/dev/null 2>&1 || die "Docker no responde o el usuario no tiene permisos";
   docker compose version >/dev/null || die "No está instalado Docker Compose";
 }
@@ -56,7 +56,7 @@ for line in Path(".env").read_text(encoding="utf-8").splitlines():
 domain = pairs.get("CF_ACCESS_TEAM_DOMAIN", "")
 aud = pairs.get("CF_ACCESS_AUD", "")
 admins = pairs.get("SYNAPSE_ADMIN_EMAILS", "")
-if not re.fullmatch(r"[a-z0-9-]+\.cloudflareaccess\.com", domain):
+if domain == "your-team.cloudflareaccess.com" or not re.fullmatch(r"[a-z0-9-]+\.cloudflareaccess\.com", domain):
     raise SystemExit("Configura CF_ACCESS_TEAM_DOMAIN (dominio exacto de Cloudflare Access)")
 if not re.fullmatch(r"[A-Za-z0-9_-]{12,160}", aud) or "replace" in aud.lower():
     raise SystemExit("Configura CF_ACCESS_AUD real de la aplicación SYNAPSE")
