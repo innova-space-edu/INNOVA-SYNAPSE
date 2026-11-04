@@ -1,0 +1,99 @@
+name: synapse
+services:
+  web:
+    container_name: synapse-web
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    init: true
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      SYNAPSE_LOCAL_DEV: "false"
+      SYNAPSE_DATABASE_URL: postgres://synapse:${SYNAPSE_DB_PASSWORD:?set SYNAPSE_DB_PASSWORD}@db:5432/synapse
+      LATEX_COMPILER_URL: http://compiler:8000
+    ports:
+      - "127.0.0.1:3410:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+      compiler:
+        condition: service_started
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,noexec,size=64m
+    pids_limit: 160
+    mem_limit: 768m
+    cpus: 1.5
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 8s
+      retries: 4
+      start_period: 30s
+    networks:
+      - internal
+      - portal
+
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: synapse
+      POSTGRES_PASSWORD: ${SYNAPSE_DB_PASSWORD:?set SYNAPSE_DB_PASSWORD}
+      POSTGRES_DB: synapse
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    volumes:
+      - synapse_pgdata:/var/lib/postgresql/data
+      - ./db/001-initial.sql:/docker-entrypoint-initdb.d/001-initial.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U synapse -d synapse"]
+      interval: 15s
+      retries: 6
+      timeout: 5s
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 80
+    mem_limit: 512m
+    cpus: 0.8
+    networks:
+      - internal
+
+  compiler:
+    build:
+      context: ./compiler
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    init: true
+    environment:
+      COMPILER_TOKEN: ${LATEX_COMPILER_TOKEN:?set LATEX_COMPILER_TOKEN}
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    pids_limit: 128
+    mem_limit: 1024m
+    cpus: 1.0
+    tmpfs:
+      - /tmp:rw,nosuid,size=256m
+    networks:
+      - internal
+
+volumes:
+  synapse_pgdata:
+    name: synapse_pgdata
+
+networks:
+  internal:
+    internal: true
+  portal:
+    name: portal_default
+    external: true
