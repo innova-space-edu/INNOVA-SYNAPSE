@@ -8,23 +8,25 @@ const PROVIDERS: {id: Provider; label:string}[] = [
  {id:'sambanova',label:'SambaNova'}, {id:'cerebras',label:'Cerebras'},
  {id:'together',label:'Together'}, {id:'openai',label:'OpenAI'}
 ];
-export function AIChat({ source, onApply }: {source: string; onApply: (text:string)=>void}) {
+export function AIChat({ source, onApply, initialMessages, onMessagesChange }: {source: string; onApply: (text:string)=>void; initialMessages:ChatMessage[]; onMessagesChange:(messages:ChatMessage[])=>void}) {
   const [open, setOpen] = useState(false);
   const [provider, setProvider] = useState<Provider>('gemini');
   const [prompt, setPrompt] = useState('');
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
   async function send() {
     if (!prompt.trim() || pending) return;
     const message = prompt.trim(); const previous = [...messages];
-    setMessages(m => [...m, {role:'user', content:message}]); setPrompt(''); setPending(true); setError('');
+    const withUser: ChatMessage[] = [...previous,{role:'user',content:message}];
+    setMessages(withUser); onMessagesChange(withUser); setPrompt(''); setPending(true); setError('');
     try {
       const response = await fetch('/api/ai', {method:'POST', headers:{'Content-Type':'application/json'},
         body:JSON.stringify({provider, prompt:message, source, history:previous})});
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'No se recibió respuesta');
-      setMessages(m => [...m, {role:'assistant', content:data.content}]);
+      const updated: ChatMessage[] = [...withUser,{role:'assistant',content:data.content}];
+      setMessages(updated); onMessagesChange(updated);
     } catch(e) { setError(e instanceof Error ? e.message : 'Error de conexión'); }
     finally { setPending(false); }
   }
