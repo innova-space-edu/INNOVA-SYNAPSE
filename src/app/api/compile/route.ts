@@ -3,6 +3,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
+  if (process.env.SYNAPSE_ENABLE_DEMO_APIS !== 'true') return NextResponse.json({error:'Servicios de demostración deshabilitados. Se requiere entorno local controlado o autenticación de producción.'},{status:503});
   // MVP restricted to trusted/local environments; enforce auth + rate limits before publishing.
   const compiler = process.env.LATEX_COMPILER_URL;
   const token = process.env.LATEX_COMPILER_TOKEN;
