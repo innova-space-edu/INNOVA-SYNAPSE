@@ -16,6 +16,7 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+
   intranet-compose:
     runs-on: ubuntu-latest
     steps:
@@ -26,6 +27,9 @@ jobs:
           SYNAPSE_DB_PASSWORD: dummy-ci-db-password
           LATEX_COMPILER_TOKEN: dummy-ci-compile-token
         run: docker compose -f compose.intranet.yaml config --quiet
+      - name: Validate Dell installation shell scripts
+        run: bash -n scripts/deploy-dell.sh scripts/check-synapse.sh scripts/smoke-compiler.sh scripts/backup-synapse.sh
+
   compiler:
     runs-on: ubuntu-latest
     steps:
