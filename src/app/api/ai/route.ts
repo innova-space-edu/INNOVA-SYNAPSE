@@ -14,6 +14,7 @@ const providers = {
 type Provider = keyof typeof providers;
 
 export async function POST(req: Request) {
+  if (process.env.SYNAPSE_ENABLE_DEMO_APIS !== 'true') return NextResponse.json({error:'Servicios de demostración deshabilitados. Se requiere entorno local controlado o autenticación de producción.'},{status:503});
   // No public access until an authenticated, quota-aware server is in place.
   try {
     const raw = await req.text();
