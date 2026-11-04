@@ -30,6 +30,7 @@ export function Workspace() {
   const [status, setStatus] = useState<'cargando'|'editado'|'guardando'|'guardado'|'error'>('cargando');
   const [compiling, setCompiling] = useState(false);
   const [showTree, setShowTree] = useState(true);
+  const [sideTab, setSideTab] = useState<'files'|'chats'>('files');
   const [treeWidth, setTreeWidth] = useState(280);
   const [pdfWidth, setPdfWidth] = useState(43);
   const [expandedFolders, setExpandedFolders] = useState<Record<string,boolean>>({});
@@ -170,12 +171,12 @@ export function Workspace() {
     </header>
     <div className="work-body">
       {showTree && <aside className="file-panel" style={{width:treeWidth}}>
-        <div className="file-panel-heading"><span>Archivos</span><div>
+        <div className="file-panel-heading"><div className="file-tabs"><button className={sideTab==='files'?'selected':''} onClick={()=>setSideTab('files')}>Archivos</button><button className={sideTab==='chats'?'selected':''} onClick={()=>setSideTab('chats')}>Conversaciones</button></div><div>
           <button className="icon-button" onClick={()=>uploadRef.current?.click()} title="Importar archivos"><Import size={16}/></button>
           <button className="icon-button" onClick={createFile} title="Nuevo archivo"><Plus size={16}/></button>
         </div></div>
         <input type="file" ref={uploadRef} multiple hidden onChange={e=>{void importAssets(e.target.files);e.target.value='';}}/>
-        <div className="file-list">
+        {sideTab==='files'?<div className="file-list">
           {folders.map(folder => <div key={folder}>
             <button className="folder-row" onClick={()=>setExpandedFolders(s=>({...s,[folder]:s[folder]===false?true:false}))}>
               {expandedFolders[folder]===false?<ChevronRight size={14}/>:<ChevronDown size={14}/>}
@@ -185,7 +186,7 @@ export function Workspace() {
             {expandedFolders[folder]!==false && project.files.filter(f=>f.path.startsWith(folder+'/')&&!f.path.endsWith('/.keep')).map(f=>renderFile(f,true))}
           </div>)}
           {project.files.filter(f=>!f.path.includes('/')&&!f.path.endsWith('.keep')).map(f=>renderFile(f,false))}
-        </div>
+        </div>:<div className="conversation-list"><p>Historial de conversación del proyecto</p>{(project.chats||[]).length===0?<span className="muted tiny">Todavía no hay mensajes. Utiliza el asistente situado debajo del editor.</span>:(project.chats||[]).map((m,i)=><div key={i} className="conversation-snippet"><b>{m.role==='assistant'?'SYNAPSE':'Tú'}</b><span>{m.content.slice(0,180)}</span></div>)}</div>}
         <div className="file-panel-bottom"><b>INNOVA SYNAPSE</b><span>Documentos locales · MVP</span></div>
       </aside>}
       {showTree && <div className="drag-handle" onMouseDown={e=>startResize('tree',e)} title="Redimensionar explorador"/>}
