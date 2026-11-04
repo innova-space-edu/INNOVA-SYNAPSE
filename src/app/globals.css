@@ -5,3 +5,14 @@
 @media(max-width:1150px){.save-indicator{display:none}.home-sidebar{width:220px}.home-header{flex-direction:column;align-items:stretch}.header-actions{justify-content:flex-end}.pdf-panel{min-width:270px}.toolbar-button{padding:8px}.work-topbar{padding:0 9px}}
 @media(max-width:800px){.home-sidebar{width:62px;padding:18px 6px}.brand{font-size:0;margin:0 auto 35px}.home-nav>button{font-size:0;justify-content:center;padding:0}.home-nav .soon,.sidebar-footer>div:not(.avatar){display:none}.sidebar-footer{justify-content:center}.home-main{padding:16px 13px}.header-actions{flex-wrap:wrap}.search{min-width:150px;flex:1}.workspace{height:100dvh}.file-panel{display:none}.work-body>.drag-handle:first-of-type{display:none}.work-top-left .project-selector{max-width:112px}.work-top-right .toolbar-button{font-size:0;gap:0}.code-panel{min-width:0}.pdf-panel{min-width:230px}.pdf-left .muted{display:none}}
 @media(max-width:580px){.work-panels{flex-direction:column}.code-panel{min-height:48%;min-width:0}.pdf-panel{width:100%!important;min-width:0;min-height:32%}.work-panels>.drag-handle{display:none}.pdf-surface{padding:8px}.pdf-toolbar{height:42px}.work-topbar{height:51px}.mini-logo,.work-top-left .divider-vertical{display:none}.compile-button{padding:7px}.compile-button svg{display:none}.assistant-expanded{height:40vh}}
+
+.work-body{position:relative}
+.history-drawer{position:absolute;right:0;top:0;bottom:0;width:min(345px,90vw);z-index:20;background:#1e1e23;border-left:1px solid #41414a;box-shadow:-12px 0 30px #0008;display:flex;flex-direction:column;padding:15px;gap:13px}
+.history-drawer header{display:flex;justify-content:space-between;align-items:center}.history-drawer header b{display:flex;align-items:center;gap:8px;font-size:14px}
+.history-drawer>p{font-size:12px;color:#a4a4b0;line-height:1.55;margin:0}
+.history-drawer>.pill{align-self:flex-start}
+.history-items{overflow:auto;display:grid;align-content:start;gap:8px;padding-top:8px}
+.history-item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px;border:1px solid #44444c;border-radius:8px}
+.history-item span{display:flex;flex-direction:column;gap:5px}.history-item b{font-size:11px}.history-item small{font-size:10px;color:#92929b}
+.history-item button{padding:7px;border:1px solid #666076;background:#383146;border-radius:7px;font-size:11px}
+.history-items>p{font-size:12px;color:#999}
