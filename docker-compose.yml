@@ -1,0 +1,32 @@
+services:
+  web:
+    build: .
+    ports:
+      - "127.0.0.1:3000:3000"
+    env_file: .env
+    environment:
+      LATEX_COMPILER_URL: http://compiler:8000
+    depends_on:
+      - compiler
+    networks:
+      - default
+      - compiler_net
+  compiler:
+    build: ./compiler
+    environment:
+      COMPILER_TOKEN: ${LATEX_COMPILER_TOKEN:?set LATEX_COMPILER_TOKEN}
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    pids_limit: 128
+    mem_limit: 1024m
+    cpus: 1.0
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=192m
+    networks:
+      - compiler_net
+networks:
+  compiler_net:
+    internal: true
