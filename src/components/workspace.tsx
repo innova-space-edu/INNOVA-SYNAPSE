@@ -47,11 +47,12 @@ export function Workspace() {
   const [previewFull, setPreviewFull] = useState(false);
   const [workspaceError, setWorkspaceError] = useState('');
   const pdfFrameRef = useRef<HTMLIFrameElement>(null);
+  const lastPdf = project?.lastPdf;
   const pdfBlob = useMemo(() => {
-    if (!project?.lastPdf) return null;
-    try { return pdfBlobFromBase64(project.lastPdf); }
+    if (!lastPdf) return null;
+    try { return pdfBlobFromBase64(lastPdf); }
     catch { return null; }
-  }, [project?.lastPdf]);
+  }, [lastPdf]);
   const active = project?.files?.find(f => f.path === activeFile);
   const hasPdf = Boolean(pdfBlob);
   const folders = useMemo(() => [...new Set((project?.files || []).filter(f => f.path.includes('/')).map(f => f.path.split('/')[0]))].sort(), [project]);
