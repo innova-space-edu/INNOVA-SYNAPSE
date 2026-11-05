@@ -30,10 +30,10 @@ export async function PUT(req:Request,context:Context){
   if(parsed.id!==id) throw new Error('Id de proyecto inconsistente');
  } catch(error) {return NextResponse.json({error:error instanceof Error?error.message:'JSON inválido'},{status:400});}
  try {
-  const json=JSON.stringify(parsed);
-  const rows=await db()`
+  const sql = db();
+  const rows=await sql`
    INSERT INTO synapse_projects (id,owner_email,document)
-   VALUES (${id}::uuid,${admin.email},${json}::jsonb)
+   VALUES (${id}::uuid,${admin.email},${sql.json(parsed)}::jsonb)
    ON CONFLICT(id) DO UPDATE SET document=EXCLUDED.document,updated_at=now()
    WHERE synapse_projects.owner_email=EXCLUDED.owner_email RETURNING id
   `;
