@@ -44,10 +44,14 @@ export function Workspace() {
   const [zoom, setZoom] = useState(100);
   const [previewFull, setPreviewFull] = useState(false);
   const [workspaceError, setWorkspaceError] = useState('');
-  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  const pdfFrameRef = useRef<HTMLIFrameElement>(null);
+  const pdfBlob = useMemo(() => {
+    if (!project?.lastPdf) return null;
+    try { return pdfBlobFromBase64(project.lastPdf); }
+    catch { return null; }
+  }, [project?.lastPdf]);
   const active = project?.files?.find(f => f.path === activeFile);
-  // Object URLs avoid browser limits and blank PDF frames caused by data: URLs.
-  const pdfLink = pdfBlobUrl;
+  const hasPdf = Boolean(pdfBlob);
   const folders = useMemo(() => [...new Set((project?.files || []).filter(f => f.path.includes('/')).map(f => f.path.split('/')[0]))].sort(), [project]);
 
   useEffect(() => {
@@ -72,21 +76,16 @@ export function Workspace() {
   }, [project]);
 
   useEffect(() => {
-    setPdfBlobUrl(null);
-    if (!project?.lastPdf) return;
-    let objectUrl: string | null = null;
-    try {
-      const blob = pdfBlobFromBase64(project.lastPdf);
-      objectUrl = URL.createObjectURL(blob);
-      setPdfBlobUrl(objectUrl);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'PDF guardado inválido';
-      setCompileMessage(message);
-    }
+    if (!pdfBlob) return;
+    const frame = pdfFrameRef.current;
+    if (!frame) return;
+    const objectUrl = URL.createObjectURL(pdfBlob);
+    frame.src = objectUrl + '#toolbar=0&navpanes=0';
     return () => {
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      frame.removeAttribute('src');
+      URL.revokeObjectURL(objectUrl);
     };
-  }, [project?.lastPdf]);
+  }, [pdfBlob]);
 
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
@@ -187,11 +186,20 @@ export function Workspace() {
     finally { setCompiling(false); }
   }
   function downloadPdf() {
-    if (!pdfLink || !project) return;
+    if (!pdfBlob || !project) return;
+    const objectUrl = URL.createObjectURL(pdfBlob);
     const a = document.createElement('a');
-    a.href = pdfLink;
+    a.href = objectUrl;
     a.download = project.name.replace(/[^a-z0-9_-]/gi,'_')+'.pdf';
     document.body.append(a); a.click(); a.remove();
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+  }
+  function openPdf() {
+    if (!pdfBlob) return;
+    const objectUrl = URL.createObjectURL(pdfBlob);
+    const opened = window.open(objectUrl, '_blank', 'noopener,noreferrer');
+    if (!opened) { URL.revokeObjectURL(objectUrl); return; }
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 120000);
   }
   function startResize(kind:'tree'|'preview', e:React.MouseEvent<HTMLDivElement>) {
     e.preventDefault(); const startX = e.clientX; const startTree = treeWidth, startPreview = pdfWidth;
@@ -263,21 +271,21 @@ export function Workspace() {
         {!previewFull && <div className="drag-handle" onMouseDown={e=>startResize('preview',e)} title="Redimensionar PDF"/>}
         <section className="pdf-panel" style={previewFull?{flex:1}:{width:pdfWidth+'%'}}>
           <div className="pdf-toolbar">
-            <div className="pdf-left"><FileText size={17}/><b>Vista PDF</b><span className="muted tiny">{pdfLink?'PDF disponible':project.lastPdf?'Validando PDF…':'Sin compilar'}</span></div>
+            <div className="pdf-left"><FileText size={17}/><b>Vista PDF</b><span className="muted tiny">{hasPdf?'PDF disponible':project.lastPdf?'PDF guardado inválido':'Sin compilar'}</span></div>
             <div className="pdf-controls">
               <button className="icon-button" title="Reducir" onClick={()=>setZoom(z=>Math.max(60,z-10))}><ZoomOut size={17}/></button>
               <span className="zoom-label">{zoom}%</span>
               <button className="icon-button" title="Ampliar" onClick={()=>setZoom(z=>Math.min(160,z+10))}><ZoomIn size={17}/></button>
               <button className="icon-button" title={previewFull?'Salir de vista amplia':'Ampliar vista PDF'} onClick={()=>setPreviewFull(!previewFull)}><Maximize size={16}/></button>
-              {pdfLink && <a className="pdf-open-link" href={pdfLink} target="_blank" rel="noopener noreferrer" title="Abrir el PDF en una pestaña nueva">Abrir PDF</a>}
-              <button className="icon-button" title="Descargar PDF" onClick={downloadPdf} disabled={!pdfLink}><Download size={17}/></button>
+              {hasPdf && <button className="pdf-open-link" type="button" onClick={openPdf} title="Abrir el PDF en una pestaña nueva">Abrir PDF</button>}
+              <button className="icon-button" title="Descargar PDF" onClick={downloadPdf} disabled={!hasPdf}><Download size={17}/></button>
             </div>
           </div>
           <div className="pdf-surface">
-            {pdfLink ? <div className="pdf-zoom-wrapper"><iframe key={pdfLink} title="Vista previa de documento PDF" className="pdf-iframe" src={pdfLink+'#toolbar=0&navpanes=0'} style={{width:zoom+'%', height:zoom+'%', minWidth:'100%',minHeight:'100%'}}/></div>
+            {hasPdf ? <div className="pdf-zoom-wrapper"><iframe ref={pdfFrameRef} title="Vista previa de documento PDF" className="pdf-iframe" style={{width:zoom+'%', height:zoom+'%', minWidth:'100%',minHeight:'100%'}}/></div>
             : <div className="pdf-placeholder"><div className="blank-document"><div className="paper-head"/><div className="paper-line"/><div className="paper-line short"/><div className="paper-heading"/><div className="paper-line"/><div className="paper-line"/></div><h3>Vista previa del documento</h3><p>Presiona <b>Compilar PDF</b> para visualizar tu investigación.</p><button className="pill primary" disabled={compiling} onClick={()=>void compile()}><Play size={15}/> Compilar ahora</button></div>}
           </div>
-          {(compileMessage || project.lastLog || pdfLink) && <div className="pdf-status"><span>{compileMessage || 'Compilación anterior'}{pdfLink ? ' · Si el visor está en blanco, pulsa Abrir PDF' : ''}</span><button onClick={()=>setShowLog(!showLog)}>{showLog?'Ocultar registro':'Ver registro'}</button></div>}
+          {(compileMessage || project.lastLog || hasPdf) && <div className="pdf-status"><span>{compileMessage || 'Compilación anterior'}{hasPdf ? ' · Si el visor está en blanco, pulsa Abrir PDF' : ''}</span><button onClick={()=>setShowLog(!showLog)}>{showLog?'Ocultar registro':'Ver registro'}</button></div>}
           {showLog && <div className="compile-log"><div><b>Registro de compilación</b><button className="icon-button" onClick={()=>setShowLog(false)}><X size={15}/></button></div><pre>{compileMessage + '\n\n' + (project.lastLog || 'Sin registro de compilación anterior.')}</pre></div>}
         </section>
       </main>
