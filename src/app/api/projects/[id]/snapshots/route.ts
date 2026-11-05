@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { verifySynapseAdmin } from '@/lib/server/access';
 import { db } from '@/lib/server/database';
-import { validUuid } from '@/lib/server/validate';
+import { parseProject, validUuid } from '@/lib/server/validate';
+import type { SynapseProject } from '@/lib/types';
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
 type Context={params:Promise<{id:string}>};
@@ -23,23 +24,28 @@ export async function POST(req:Request,context:Context){
  if(!admin) return NextResponse.json({error:'Acceso denegado'},{status:403});
  const {id}=await context.params;
  if(!validUuid(id)) return NextResponse.json({error:'Id inválido'},{status:400});
- let input: {name:string;mainFile:string;files:unknown[]};
+ let input: Pick<SynapseProject, 'name' | 'mainFile' | 'files'>;
  try {
   const raw=await req.text();
   if(raw.length>20_000_000) return NextResponse.json({error:'Instantánea demasiado grande'},{status:413});
-  input=JSON.parse(raw);
-  if(!input || typeof input.name!=='string' || input.name.length>200 ||
-    typeof input.mainFile!=='string' || !Array.isArray(input.files) || input.files.length>150)
+  const candidate: unknown = JSON.parse(raw);
+  if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate))
     throw new Error('Instantánea inválida');
+  const validated = parseProject({
+    ...candidate,
+    id: crypto.randomUUID(),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  });
+  input = {name: validated.name, mainFile: validated.mainFile, files: validated.files};
  } catch {return NextResponse.json({error:'Instantánea inválida'},{status:400});}
  try {
   const sql=db();
   const existing=await sql`SELECT id FROM synapse_projects WHERE id=${id}::uuid AND owner_email=${admin.email}`;
   if(!existing.length) return NextResponse.json({error:'Proyecto no autorizado'},{status:404});
   const snapshotId=crypto.randomUUID();
-  const payload=JSON.stringify(input);
   await sql`INSERT INTO synapse_snapshots (id,project_id,owner_email,payload)
-    VALUES (${snapshotId}::uuid,${id}::uuid,${admin.email},${payload}::jsonb)`;
+    VALUES (${snapshotId}::uuid,${id}::uuid,${admin.email},${sql.json(input)}::jsonb)`;
   await sql`DELETE FROM synapse_snapshots WHERE id IN (
     SELECT id FROM synapse_snapshots WHERE project_id=${id}::uuid AND owner_email=${admin.email}
     ORDER BY created_at DESC,id DESC OFFSET 20
