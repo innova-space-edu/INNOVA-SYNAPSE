@@ -44,9 +44,12 @@ export async function POST(req: Request) {
     const history = (Array.isArray(input.history) ? input.history : [])
       .filter(m => m && ['user','assistant'].includes(m.role) && typeof m.content === 'string')
       .slice(-4).map(m => ({role:m.role,content:m.content.slice(0,900)}));
+    const extension = typeof input.filePath === 'string'
+      ? input.filePath.split('.').pop()?.toLowerCase() : undefined;
     const filePath = typeof input.filePath === 'string' && input.filePath.length <= 260 &&
-      !input.filePath.includes('\\0') && !input.filePath.includes('\\\\') &&
-      /\\.(tex|bib|sty|cls|bst|txt)$/i.test(input.filePath)
+      !input.filePath.includes(String.fromCharCode(0)) &&
+      !input.filePath.includes(String.fromCharCode(92)) &&
+      ['tex', 'bib', 'sty', 'cls', 'bst', 'txt'].includes(extension || '')
       ? input.filePath : 'archivo activo';
     const sourceExcerpt = inputSource.slice(0, mode === 'review' ? 8000 : 12000);
     const compileLog = mode === 'latex' && typeof input.lastLog === 'string'
