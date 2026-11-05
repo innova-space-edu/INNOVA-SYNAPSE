@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Bot, ChevronDown, CornerUpRight, Send, Sparkles, X } from 'lucide-react';
 import type { ChatMessage, Provider } from '@/lib/types';
 import { sanitizeAITextEdits, sourceFingerprint, type AITextEdit } from '@/lib/ai-edits';
+import { AGENT_MODES, type AIAgentMode } from '@/lib/ai-agents';
 
 const PROVIDERS: {id: Provider; label:string}[] = [
  {id:'gemini',label:'Gemini'}, {id:'groq',label:'Groq'}, {id:'openrouter',label:'OpenRouter'},
@@ -12,15 +13,17 @@ const PROVIDERS: {id: Provider; label:string}[] = [
 type Props = {
   source: string;
   activeFile: string;
+  lastLog?: string;
   onApply: (text: string) => void;
   onApplyEdits: (edits: AITextEdit[], filePath: string, fingerprint: string) => Promise<void>;
   initialMessages: ChatMessage[];
   onMessagesChange: (messages: ChatMessage[]) => void;
 };
 
-export function AIChat({ source, activeFile, onApply, onApplyEdits, initialMessages, onMessagesChange }: Props) {
+export function AIChat({ source, activeFile, lastLog, onApply, onApplyEdits, initialMessages, onMessagesChange }: Props) {
   const [open, setOpen] = useState(false);
   const [provider, setProvider] = useState<Provider>('gemini');
+  const [mode, setMode] = useState<AIAgentMode>('edit');
   const [prompt, setPrompt] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [pending, setPending] = useState(false);
@@ -41,9 +44,17 @@ export function AIChat({ source, activeFile, onApply, onApplyEdits, initialMessa
     try {
       const response = await fetch('/api/ai', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({provider, prompt:message, source:sourceBefore, filePath:fileBefore, history:previous})
+        body:JSON.stringify({provider, mode, prompt:message, source:sourceBefore.slice(0,16000), filePath:fileBefore,
+          lastLog: mode === 'latex' ? lastLog?.slice(-3500) : undefined,
+          history: previous.slice(-4).map(item => ({role:item.role,content:item.content.slice(0,900)}))})
       });
-      const data: unknown = await response.json();
+      const body = await response.text();
+      let data: unknown;
+      try { data = JSON.parse(body) as unknown; }
+      catch {
+        throw new Error('El servicio de IA devolvió una respuesta no válida (HTTP ' + response.status +
+          '). Revisa los registros del servidor; no se aplicó ningún cambio.');
+      }
       const record = data && typeof data === 'object' ? data as Record<string, unknown> : {};
       if (!response.ok) throw new Error(typeof record.error === 'string' ? record.error : 'No se recibió respuesta');
       const edits = sanitizeAITextEdits(record.edits);
@@ -90,8 +101,16 @@ export function AIChat({ source, activeFile, onApply, onApplyEdits, initialMessa
   return <section className={'assistant-dock ' + (open ? 'assistant-expanded' : '')} aria-label="Asistente de inteligencia artificial">
     {open && <>
       <header className="assistant-title">
-        <span><Sparkles size={17}/> Asistente científico · Editor</span>
-        <button className="icon-button" onClick={() => setOpen(false)} aria-label="Contraer asistente"><X size={17}/></button>
+        <span><Sparkles size={17}/> Asistente científico</span>
+        <div className="ai-agent-tools">
+          <label className="ai-mode-label" htmlFor="synapse-agent-mode">Especialidad</label>
+          <select id="synapse-agent-mode" className="ai-agent-mode" value={mode}
+            onChange={e => setMode(e.target.value as AIAgentMode)} disabled={pending || applying}
+            aria-label="Agente de trabajo">
+            {AGENT_MODES.map(agent => <option key={agent.id} value={agent.id}>{agent.label}</option>)}
+          </select>
+          <button className="icon-button" onClick={() => setOpen(false)} aria-label="Contraer asistente"><X size={17}/></button>
+        </div>
       </header>
       <div className="assistant-messages">
         {messages.length === 0 && <div className="chat-placeholder">
@@ -139,7 +158,7 @@ export function AIChat({ source, activeFile, onApply, onApplyEdits, initialMessa
     </>}
     <div className="assistant-input">
       <button className="icon-button" title="Abrir asistente" onClick={() => setOpen(!open)}><Sparkles size={17}/></button>
-      <textarea rows={open ? 2 : 1} value={prompt} onFocus={() => setOpen(true)} onChange={e => setPrompt(e.target.value)}
+      <textarea rows={1} value={prompt} onFocus={() => setOpen(true)} onChange={e => setPrompt(e.target.value)}
         onKeyDown={e => {if(e.key === 'Enter' && !e.shiftKey){e.preventDefault();void send();}}}
         placeholder="Pide una modificación del archivo activo…" aria-label="Mensaje al asistente"/>
       <select value={provider} aria-label="Proveedor de IA" onChange={e => setProvider(e.target.value as Provider)}>
