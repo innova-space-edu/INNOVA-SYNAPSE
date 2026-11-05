@@ -21,7 +21,9 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "jose": "^6.1.0",
-    "postgres": "^3.4.7"
+    "postgres": "^3.4.7",
+    "@codemirror/state": "^6.4.0",
+    "@codemirror/view": "^6.38.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
