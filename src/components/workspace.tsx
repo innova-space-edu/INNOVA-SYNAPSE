@@ -1,12 +1,13 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Image from 'next/image';
 import { useParams, useRouter } from 'next/navigation';
 import CodeMirror from '@uiw/react-codemirror';
 import { StreamLanguage } from '@codemirror/language';
 import { stex } from '@codemirror/legacy-modes/mode/stex';
 import { ArrowLeft, Clock3, ChevronDown, ChevronRight, ChevronsLeft, Download, FileCode2,
   FileText, Folder, FolderOpen, Import, Maximize, MoreHorizontal, PanelLeftClose,
-  PanelLeftOpen, Play, Plus, Save, Terminal, Trash2, WandSparkles, X, ZoomIn, ZoomOut } from 'lucide-react';
+  PanelLeftOpen, Play, Plus, Save, Terminal, Trash2, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { AIChat } from './ai-chat';
 import { loadProject, saveProject, listSnapshots, saveSnapshot } from '@/lib/storage';
 import { exportProjectZip, safePath } from '@/lib/zip';
@@ -179,7 +180,7 @@ export function Workspace() {
     <header className="work-topbar">
       <div className="work-top-left">
         <button className="icon-button" onClick={() => void exitWorkspace()} title="Guardar y volver a todos los proyectos"><ArrowLeft size={19}/></button>
-        <div className="mini-logo"><WandSparkles size={19}/></div>
+        <div className="mini-logo"><Image src="/brand/synapse-symbol.svg" width={20} height={20} alt="INNOVA SYNAPSE" /></div>
         <span className="divider-vertical"/>
         <button className="project-selector" onClick={() => {const n=prompt('Nombre del proyecto:',project.name)?.trim();if(n)change(p=>({...p,name:n}));}}>{project.name}<ChevronDown size={15}/></button>
         <button className="icon-button" onClick={()=>setShowTree(!showTree)} title={showTree?'Ocultar archivos':'Mostrar archivos'}>{showTree?<PanelLeftClose size={17}/>:<PanelLeftOpen size={17}/>}</button>
