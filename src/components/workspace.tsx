@@ -191,7 +191,7 @@ export function Workspace() {
   return <div className="workspace">
     <header className="work-topbar">
       <div className="work-top-left">
-        <button className="icon-button" onClick={() => void exitWorkspace()} title="Guardar y volver a todos los proyectos"><ArrowLeft size={19}/></button>
+        <button className="work-projects-link" onClick={() => void exitWorkspace()} title="Guardar y volver a proyectos creados" aria-label="Guardar y volver a proyectos creados"><ArrowLeft size={19}/><span>Proyectos</span></button>
         <div className="mini-logo"><Image src="/brand/synapse-symbol.svg" width={20} height={20} alt="INNOVA SYNAPSE" /></div>
         <span className="divider-vertical"/>
         <button className="project-selector" onClick={() => {const n=prompt('Nombre del proyecto:',project.name)?.trim();if(n)change(p=>({...p,name:n}));}}>{project.name}<ChevronDown size={15}/></button>
