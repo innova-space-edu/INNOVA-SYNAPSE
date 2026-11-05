@@ -1,3 +1,4 @@
+import { isAITextEdit } from '../ai-edits';
 import type { SynapseProject } from '../types';
 
 const filePattern = /\.(tex|bib|sty|cls|bst|png|jpe?g|pdf|eps|txt|keep)$/i;
@@ -20,7 +21,13 @@ export function parseProject(value: unknown): SynapseProject {
       (p.lastPdf !== undefined && (typeof p.lastPdf !== 'string' || p.lastPdf.length > 22_000_000)) ||
       (p.lastLog !== undefined && (typeof p.lastLog !== 'string' || p.lastLog.length > 50_000)) ||
       (p.chats !== undefined && (!Array.isArray(p.chats) || p.chats.length > 100 ||
-        p.chats.some(m => !['user','assistant'].includes(m.role) || typeof m.content !== 'string' || m.content.length > 32_000)))
+        p.chats.some(m => !m || !['user','assistant'].includes(m.role) ||
+          typeof m.content !== 'string' || m.content.length > 32_000 ||
+          (m.edits !== undefined && (!Array.isArray(m.edits) || m.edits.length > 12 || !m.edits.every(isAITextEdit))) ||
+          (m.filePath !== undefined && (typeof m.filePath !== 'string' || !validFile(m.filePath))) ||
+          (m.sourceFingerprint !== undefined && (typeof m.sourceFingerprint !== 'string' || !/^[0-9a-f]{8}:[0-9]+$/.test(m.sourceFingerprint))) ||
+          (m.applied !== undefined && typeof m.applied !== 'boolean') ||
+          (m.discarded !== undefined && typeof m.discarded !== 'boolean'))))
   ) throw new Error('El proyecto tiene campos no válidos o excede los límites permitidos');
   return p as SynapseProject;
 }

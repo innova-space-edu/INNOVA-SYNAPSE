@@ -58,3 +58,21 @@
 .pdf-open-link:hover{background:#e8dfff;color:#292555}
 .pdf-open-link:focus-visible{outline:2px solid #7963c8;outline-offset:2px}
 @media(max-width:580px){.pdf-open-link{font-size:10px;padding:5px 6px;margin-right:0}}
+
+/* AI proposals: review the exact before/after text before applying to the Dell. */
+.ai-edit-proposal{margin-top:12px;padding:9px;border:1px solid #514165;background:#25212c;border-radius:9px;max-width:100%}
+.ai-edit-header{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:11px}
+.ai-edit-header button{font-size:11px;border:1px solid #8269b0;border-radius:6px;background:#3a3050;color:#f0eaff;padding:5px 8px}
+.ai-edits-applied{font-size:11px;color:#9ae1b1}
+.ai-edit-diff{margin-top:10px;display:grid;gap:4px;border-top:1px solid #493e51;padding-top:8px}
+.ai-edit-diff small{font-size:11px;color:#bcb2ce;font-weight:600}
+.ai-edit-diff pre{font-size:11px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;max-height:180px;overflow:auto;background:#111116;border:1px solid #3e3449;border-radius:5px;padding:8px;color:#e9e5f1;margin:0}
+.ai-edit-proposal .apply-button:disabled{opacity:.55;cursor:not-allowed}
+
+.ai-edit-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:12px}
+.ai-edit-actions .apply-button{margin-top:0}
+.ai-reject-button{font-size:11px;border:1px solid #54515e;background:#28252f;color:#d6d1dc;border-radius:7px;padding:7px 10px}
+.ai-reject-button:hover:not(:disabled){background:#393442}
+.ai-reject-button:disabled{opacity:.5;cursor:not-allowed}
+.ai-edits-discarded{font-size:11px;color:#b9b3c4}
+.ai-edit-safety{display:block;margin-top:9px;font-size:10px;color:#bfb5cf}
