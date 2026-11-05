@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { BookOpenText, ChevronDown, FilePlus2, FileText, FolderOpen, Grid2X2, Import, LayoutList, MoreHorizontal, Plus, Search, Users, AlertTriangle, X } from 'lucide-react';
+import { ShareProject } from './share-project';
 import type { SynapseProject } from '@/lib/types';
 import { deleteProject, deleteLegacyProject, loadLegacyProject, listProjects, saveProject } from '@/lib/storage';
 import { newProject } from '@/lib/templates';
@@ -17,12 +18,37 @@ function reportError(action: string, error: unknown) {
 export function Dashboard() {
   const router = useRouter();
   const uploadRef = useRef<HTMLInputElement>(null);
+  const [error, setError] = useState('');
+  const [sharing,setSharing]=useState<SynapseProject|null>(null);
+  const [session,setSession]=useState<{email:string;canCreate:boolean}|null>(null);
+  const [invitations,setInvitations]=useState<{id:string;name:string;role:string;owner_email:string}[]>([]);
+  const [invitationBusy,setInvitationBusy]=useState(false);
+  useEffect(()=>{
+    let alive=true;
+    void Promise.all([fetch('/api/session').then(r=>r.ok?r.json():Promise.reject(new Error('No se pudo verificar la sesión.'))),
+      fetch('/api/invitations').then(r=>r.ok?r.json():Promise.reject(new Error('No se pudo cargar invitaciones.')))])
+      .then(([user,items])=>{if(alive){setSession(user);setInvitations(items);}})
+      .catch(e=>{if(alive)setError(e.message);});
+    return ()=>{alive=false;};
+  },[]);
+  async function respondInvitation(id:string,action:'accept'|'decline'){
+    if(invitationBusy)return;
+    setInvitationBusy(true);setError('');
+    try{
+      const response=await fetch('/api/invitations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,action})});
+      const data=await response.json();
+      if(!response.ok)throw new Error(data.error);
+      setInvitations(items=>items.filter(item=>item.id!==id));
+      await refresh();
+      if(action==='accept')router.push('/projects/'+data.projectId);
+    }catch(e){setError(e instanceof Error?e.message:'No se pudo procesar la invitación');}
+    finally{setInvitationBusy(false);}
+  }
   const [projects, setProjects] = useState<SynapseProject[]>([]);
   const [filter, setFilter] = useState('');
   const [section, setSection] = useState<'all'|'mine'|'recovery'|'shared'>('all');
   const [grid, setGrid] = useState(false);
   const [busy, setBusy] = useState(true);
-  const [error, setError] = useState('');
   const [creating, setCreating] = useState(false);
   const [incompleteCount, setIncompleteCount] = useState(0);
   const [pending, setPending] = useState<PendingProject[]>([]);
@@ -140,18 +166,18 @@ export function Dashboard() {
     try { const project = await importProjectZip(file); await saveProject(project); router.push('/projects/' + project.id); }
     catch (e) { setError(e instanceof Error ? e.message : 'Error al importar ZIP'); }
   }
-  const shown = projects.filter(p => typeof p?.name === 'string' && p.name.toLowerCase().includes(filter.toLowerCase()) && section !== 'shared' && section !== 'recovery');
+  const shown = projects.filter(p => typeof p?.name === 'string' && p.name.toLowerCase().includes(filter.toLowerCase()) && section !== 'recovery' && (section !== 'shared' || p._access !== 'owner') && (section !== 'mine' || p._access === 'owner'));
   return (
     <div className="shell">
       <aside className="home-sidebar">
         <div className="brand"><div className="brand-mark"><Image src="/brand/synapse-symbol.svg" alt="Símbolo de INNOVA SYNAPSE" width={23} height={23} priority /></div><span>INNOVA <b>SYNAPSE</b></span></div>
         <nav className="home-nav" aria-label="Biblioteca">
           <button className={section === 'all' ? 'nav-active' : ''} onClick={() => setSection('all')}><FolderOpen size={17}/> Todos los proyectos</button>
-          <button className={section === 'mine' ? 'nav-active' : ''} onClick={() => setSection('mine')}><BookOpenText size={17}/> Proyectos creados <span className="nav-count">{projects.length}</span></button>
+          <button className={section === 'mine' ? 'nav-active' : ''} onClick={() => setSection('mine')}><BookOpenText size={17}/> Proyectos creados <span className="nav-count">{projects.filter(p=>p._access==='owner').length}</span></button>
           <button className={section === 'recovery' ? 'nav-active' : ''} onClick={() => setSection('recovery')}><AlertTriangle size={17}/> Por recuperar <span className="nav-count">{incompleteCount}</span></button>
-          <button className={section === 'shared' ? 'nav-active' : ''} onClick={() => setSection('shared')}><Users size={17}/> Compartido contigo <span className="soon">Próx.</span></button>
+          <button className={section === 'shared' ? 'nav-active' : ''} onClick={() => setSection('shared')}><Users size={17}/> Compartido contigo <span className="nav-count">{projects.filter(p=>p._access!=='owner').length}</span></button>
         </nav>
-        <div className="sidebar-footer"><div className="avatar">I</div><div>Espacio personal <small>Almacenamiento privado en Dell</small></div></div>
+        <div className="sidebar-footer"><div className="avatar">I</div><div>{session?.email || 'Espacio personal'} <small>Almacenamiento privado en Dell</small></div></div>
       </aside>
       <main className="home-main">
         <header className="home-header">
@@ -159,8 +185,8 @@ export function Dashboard() {
           <div className="header-actions">
             <label className="search"><Search size={18}/><input value={filter} onChange={e => setFilter(e.target.value)} placeholder="Buscar proyectos" aria-label="Buscar proyectos"/></label>
             <div className="view-switch"><button title="Vista lista" aria-label="Vista lista" className={!grid ? 'chosen':''} onClick={() => setGrid(false)}><LayoutList size={17}/></button><button title="Vista cuadrícula" aria-label="Vista cuadrícula" className={grid ? 'chosen':''} onClick={() => setGrid(true)}><Grid2X2 size={17}/></button></div>
-            <button className="pill secondary" onClick={() => uploadRef.current?.click()}><Import size={16}/> Importar <ChevronDown size={14}/></button>
-            <button className="pill primary" onClick={create} disabled={creating}><Plus size={17}/> {creating ? "Creando…" : "Nuevo"} <ChevronDown size={14}/></button>
+            <button className="pill secondary" disabled={!session?.canCreate} onClick={() => uploadRef.current?.click()}><Import size={16}/> Importar <ChevronDown size={14}/></button>
+            <button className="pill primary" onClick={create} disabled={creating || !session?.canCreate}><Plus size={17}/> {creating ? "Creando…" : "Nuevo"} <ChevronDown size={14}/></button>
           </div>
         </header>
         <input ref={uploadRef} type="file" accept=".zip,application/zip" hidden onChange={e => {void upload(e.target.files?.[0]); e.target.value = '';}}/>
@@ -170,6 +196,14 @@ export function Dashboard() {
           <span>{incompleteCount} {incompleteCount === 1 ? 'proyecto anterior requiere' : 'proyectos anteriores requieren'} recuperación de formato. Sus datos no se eliminaron.</span>
           <button type="button" onClick={() => setSection('recovery')}>Ver pendientes</button>
         </div>}
+        {invitations.length>0 && <section className="invitation-list" aria-label="Invitaciones pendientes">
+          <h2>Invitaciones pendientes</h2>{invitations.map(item=><div key={item.id}>
+            <span><b>{item.name || 'Proyecto'}</b> · {item.owner_email} · {item.role==='editor'?'Editor':'Lector'}</span>
+            <button disabled={invitationBusy} onClick={()=>void respondInvitation(item.id,'accept')}>Aceptar</button>
+            <button disabled={invitationBusy} onClick={()=>void respondInvitation(item.id,'decline')}>Rechazar</button>
+          </div>)}
+        </section>}
+        {sharing && <ShareProject id={sharing.id} name={sharing.name} onClose={()=>setSharing(null)}/>}
         {busy ? <div className="blank">Cargando proyectos…</div> : section === 'recovery' ? <section className="recovery-section">
           <h2>Registros pendientes de recuperación</h2>
           <p>Estos registros conservan sus archivos, pero tienen un formato anterior. Puedes recuperar una copia nueva o descargar su ZIP antes de decidir si eliminas el original.</p>
@@ -201,17 +235,16 @@ export function Dashboard() {
             <code>bash scripts/repair-jsonb.sh --apply</code>
             Si no puedes recuperar una copia desde el navegador, usa estos comandos en el Dell. La migración requiere un respaldo completo previo. Eliminar un registro antiguo también elimina sus instantáneas.
           </div>}
-        </section> : section === 'shared' ? <div className="empty-state"><Users size={40}/><h2>Colaboración en preparación</h2><p>Los espacios compartidos requerirán autenticación, permisos y sincronización en el servidor.</p></div>
-        : shown.length === 0 ? <div className="empty-state"><FilePlus2 size={43}/><h2>{filter ? 'No hay coincidencias' : 'Comienza tu próxima investigación'}</h2><p>{filter ? 'Prueba otra búsqueda.' : 'Crea un proyecto LaTeX o importa un ZIP exportado de Prism.'}</p>{!filter && <button className="pill primary" onClick={create} disabled={creating}><Plus size={17}/> {creating ? "Creando…" : "Crear proyecto"}</button>}</div>
+        </section> : shown.length === 0 ? <div className="empty-state"><FilePlus2 size={43}/><h2>{filter ? 'No hay coincidencias' : 'Comienza tu próxima investigación'}</h2><p>{filter ? 'Prueba otra búsqueda.' : 'Crea un proyecto LaTeX o importa un ZIP exportado de Prism.'}</p>{!filter && <button className="pill primary" onClick={create} disabled={creating || !session?.canCreate}><Plus size={17}/> {creating ? "Creando…" : "Crear proyecto"}</button>}</div>
         : <div className={grid ? 'project-grid' : 'project-list'}>
             {!grid && <div className="list-heading"><span>Nombre</span><span>Actualizado</span></div>}
             {shown.map(project => <div key={project.id} className="project-row" role="group">
               <button className="project-open" onClick={() => router.push('/projects/'+project.id)} aria-label={'Abrir '+project.name}>
                 <div className="page-thumb"><FileText size={22}/></div>
-                <div className="project-name"><b>{project.name}</b><small>{project.files.length} archivos</small></div>
+                <div className="project-name"><b>{project.name}</b><small>{project.files.length} archivos · {project._access==='reader'?'Lector':project._access==='editor'?'Editor':'Propietario'}</small></div>
               </button>
               <span className="project-date">{new Date(project.updatedAt).toLocaleDateString('es-CL')}</span>
-              <details className="context-menu"><summary aria-label={'Opciones de '+project.name}><MoreHorizontal size={20}/></summary><div className="menu-popover"><button onClick={() => rename(project)}>Renombrar</button><button onClick={() => duplicate(project)}>Duplicar</button><button className="danger" onClick={() => remove(project)}>Eliminar</button></div></details>
+              <details className="context-menu"><summary aria-label={'Opciones de '+project.name}><MoreHorizontal size={20}/></summary><div className="menu-popover">{project._access==='owner'&&<><button onClick={()=>setSharing(project)}>Compartir</button><button onClick={() => rename(project)}>Renombrar</button><button className="danger" onClick={() => remove(project)}>Eliminar</button></>}{session?.canCreate&&<button onClick={() => duplicate(project)}>Duplicar</button>}</div></details>
             </div>)}
           </div>}
       </main>

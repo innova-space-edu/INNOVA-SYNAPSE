@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import fs from 'node:fs';
-test('auth requires a signed Cloudflare JWT and email allowlist',()=>{
+test('auth verifies signed Cloudflare JWT; administrator privileges retain their allowlist',()=>{
  const code=fs.readFileSync('src/lib/server/access.ts','utf8');
  assert.match(code,/jwtVerify\(/);
  assert.match(code,/audience/);
- assert.match(code,/allowlist\.has\(email\)/);
+ assert.match(code,/admins\(\)\.has\(email\)/);
  assert.match(code,/SYNAPSE_LOCAL_DEV === 'true'/);
 });
 test('database is isolated from intranet data',()=>{
@@ -17,7 +17,7 @@ test('database is isolated from intranet data',()=>{
 test('all private API handlers call independent origin authorization',()=>{
  for(const file of ['src/app/api/ai/route.ts','src/app/api/compile/route.ts',
   'src/app/api/projects/route.ts','src/app/api/projects/[id]/route.ts',
-  'src/app/api/projects/[id]/snapshots/route.ts']){
-  assert.match(fs.readFileSync(file,'utf8'),/verifySynapseAdmin\(/,file);
+  'src/app/api/projects/[id]/snapshots/route.ts','src/app/api/invitations/route.ts','src/app/api/projects/[id]/sharing/route.ts','src/app/api/session/route.ts']){
+  assert.match(fs.readFileSync(file,'utf8'),/verifySynapseUser\(/,file);
  }
 });

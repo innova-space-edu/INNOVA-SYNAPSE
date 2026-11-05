@@ -11,6 +11,7 @@ const PROVIDERS: {id: Provider; label:string}[] = [
   {id:'together',label:'Together'}, {id:'openai',label:'OpenAI'}
 ];
 type Props = {
+  projectId: string;
   source: string;
   activeFile: string;
   lastLog?: string;
@@ -21,7 +22,7 @@ type Props = {
 };
 
 export function AIChat({
-  source, activeFile, lastLog, initialMessages, onMessagesChange,
+  projectId, source, activeFile, lastLog, initialMessages, onMessagesChange,
   onReviewProposal, reviewingIndex
 }: Props) {
   const [open, setOpen] = useState(false);
@@ -45,7 +46,7 @@ export function AIChat({
       const response = await fetch('/api/ai', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body:JSON.stringify({
-          provider, mode, prompt:message, source:sourceBefore.slice(0,16000), filePath:fileBefore,
+          projectId, provider, mode, prompt:message, source:sourceBefore.slice(0,16000), filePath:fileBefore,
           lastLog: mode === 'latex' ? lastLog?.slice(-3500) : undefined,
           history: previous.slice(-4).map(item => ({role:item.role,content:item.content.slice(0,900)}))
         })

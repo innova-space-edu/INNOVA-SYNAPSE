@@ -40,7 +40,7 @@ test('before an AI edit is accepted, a version is preserved, saved and then comp
   const saveIndex = approve.indexOf('then(() => saveProject(revisedProject))');
   const compileIndex = approve.indexOf('await compileProject(revisedProject, false)');
   assert.ok(snapshotIndex >= 0 && saveIndex > snapshotIndex && compileIndex > saveIndex);
-  assert.match(ws,/body: JSON\.stringify\(\{ mainFile:target\.mainFile, files:target\.files \}\)/);
+  assert.match(ws,/body: JSON\.stringify\(\{ projectId:target\.id, mainFile:target\.mainFile, files:target\.files \}\)/);
   assert.match(ws,/const compiled: SynapseProject =/);
   assert.match(ws,/await saveQueue\.current/);
 });

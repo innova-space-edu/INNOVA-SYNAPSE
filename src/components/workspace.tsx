@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic';
 import { ArrowLeft, Clock3, ChevronDown, ChevronRight, ChevronsLeft, Download, FileCode2,
   FileText, Folder, FolderOpen, Import, Maximize, MoreHorizontal, PanelLeftClose,
   PanelLeftOpen, Play, Plus, Save, Terminal, Trash2, X, Check, ZoomIn, ZoomOut } from 'lucide-react';
+import { ShareProject } from './share-project';
 import { AIChat } from './ai-chat';
 import { loadProject, saveProject, listSnapshots, saveSnapshot } from '@/lib/storage';
 import { exportProjectZip, safePath } from '@/lib/zip';
@@ -38,6 +39,8 @@ export function Workspace() {
   const uploadRef = useRef<HTMLInputElement>(null);
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
   const autosaveTimer = useRef<number | null>(null);
+  const editGeneration=useRef(0);
+  const [sharing,setSharing]=useState(false);
   const [project, setProject] = useState<SynapseProject | null>(null);
   const [activeFile, setActiveFile] = useState('main.tex');
   const [status, setStatus] = useState<'cargando'|'editado'|'guardando'|'guardado'|'error'>('cargando');
@@ -63,6 +66,7 @@ export function Workspace() {
     try { return pdfBlobFromBase64(lastPdf); }
     catch { return null; }
   }, [lastPdf]);
+  const canEdit=project?._access==='owner' || project?._access==='editor';
   const active = project?.files?.find(f => f.path === activeFile);
   const hasPdf = Boolean(pdfBlob);
   const folders = useMemo(() => [...new Set((project?.files || []).filter(f => f.path.includes('/')).map(f => f.path.split('/')[0]))].sort(), [project]);
@@ -80,15 +84,22 @@ export function Workspace() {
   }, [params.id, router]);
 
   useEffect(() => {
-    if (!project) return;
+    if (!project || !canEdit || status!=='editado' || compiling || applyingAI) return;
+    const generation=editGeneration.current;
     autosaveTimer.current = window.setTimeout(() => {
+      setStatus('guardando');
       saveQueue.current = saveQueue.current.catch(() => undefined).then(() => saveProject(project));
-      void saveQueue.current.then(() => setStatus('guardado')).catch(() => setStatus('error'));
+      void saveQueue.current.then(() => {
+        if(editGeneration.current===generation)setStatus('guardado');
+      }).catch((error:unknown) => {
+        setStatus('error');
+        setWorkspaceError(error instanceof Error?error.message:'No se pudo guardar.');
+      });
     }, 650);
     return () => {
       if (autosaveTimer.current !== null) window.clearTimeout(autosaveTimer.current);
     };
-  }, [project]);
+  }, [project,canEdit,status,compiling,applyingAI]);
 
   useEffect(() => {
     if (!pdfBlob) return;
@@ -104,7 +115,7 @@ export function Workspace() {
 
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
-      if (status === 'editado' || status === 'guardando') { event.preventDefault(); event.returnValue = ''; }
+      if (status === 'editado' || status === 'guardando' || status === 'error') { event.preventDefault(); event.returnValue = ''; }
     };
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
@@ -112,6 +123,8 @@ export function Workspace() {
 
   async function exitWorkspace() {
     if (!project) return;
+    if (!canEdit) {router.push('/');return;}
+    if (status==='error') {setWorkspaceError('Exporta tus cambios como ZIP antes de salir o cargar la versión del servidor.');return;}
     try {
       await saveQueue.current;
       await saveProject(project);
@@ -122,9 +135,11 @@ export function Workspace() {
     }
   }
     const change = useCallback((update: (old:SynapseProject)=>SynapseProject) => {
+    if(!canEdit || compiling || applyingAI || status==='error')return;
+    editGeneration.current+=1;
     setProject(old => old ? update(old) : old);
     setStatus('editado');
-  }, []);
+  }, [canEdit,status,compiling,applyingAI]);
   function updateContent(text:string) {
     change(p => ({...p, files:p.files.map(f => f.path === activeFile ? {...f, content:text} : f)}));
   }
@@ -156,7 +171,7 @@ export function Workspace() {
   }
 
   async function applyAIProposal() {
-    if (!project || !review || compiling || applyingAI) return;
+    if (!canEdit || !project || !review || compiling || applyingAI || status==='error') return;
     const file = project.files.find(f => f.path === review.filePath);
     if (!file || file.encoding !== 'utf8') {
       setCompileMessage('El archivo de esta propuesta no existe.');
@@ -272,7 +287,7 @@ export function Workspace() {
       }
       const response = await fetch('/api/compile', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ mainFile:target.mainFile, files:target.files })
+        body: JSON.stringify({ projectId:target.id, mainFile:target.mainFile, files:target.files })
       });
       const data = await response.json() as CompileResult;
       if (!response.ok || !data.ok || !data.pdf) {
@@ -303,7 +318,7 @@ export function Workspace() {
   }
 
   async function compile() {
-    if (!project || compiling || applyingAI || review) return;
+    if (!canEdit || !project || compiling || applyingAI || review || status==='error') return;
     await compileProject(project, true);
   }
   function downloadPdf() {
@@ -324,6 +339,17 @@ export function Workspace() {
     a.rel = 'noopener noreferrer';
     document.body.append(a); a.click(); a.remove();
     window.setTimeout(() => URL.revokeObjectURL(objectUrl), 120000);
+  }
+  async function reloadRemote(){
+    if(!window.confirm('Se reemplazará la versión abierta por la del servidor. Exporta antes un ZIP si tienes cambios sin guardar. ¿Continuar?'))return;
+    try{
+      if(autosaveTimer.current!==null)window.clearTimeout(autosaveTimer.current);
+      await saveQueue.current.catch(()=>undefined);
+      const fresh=await loadProject(params.id);
+      if(!fresh)throw new Error('Ya no tienes acceso al proyecto.');
+      setProject(fresh);setActiveFile(fresh.mainFile);setReview(null);
+      setWorkspaceError('');setStatus('guardado');
+    }catch(e){setWorkspaceError(e instanceof Error?e.message:'No se pudo cargar el proyecto.');}
   }
   function startResize(kind:'tree'|'preview', e:React.MouseEvent<HTMLDivElement>) {
     e.preventDefault(); const startX = e.clientX; const startTree = treeWidth, startPreview = pdfWidth;
@@ -351,22 +377,29 @@ export function Workspace() {
         <button className="work-projects-link" onClick={() => void exitWorkspace()} title="Guardar y volver a proyectos creados" aria-label="Guardar y volver a proyectos creados"><ArrowLeft size={19}/><span>Proyectos</span></button>
         <div className="mini-logo"><Image src="/brand/synapse-symbol.svg" width={20} height={20} alt="INNOVA SYNAPSE" /></div>
         <span className="divider-vertical"/>
-        <button className="project-selector" onClick={() => {const n=prompt('Nombre del proyecto:',project.name)?.trim();if(n)change(p=>({...p,name:n}));}}>{project.name}<ChevronDown size={15}/></button>
+        <button className="project-selector" disabled={!canEdit} onClick={() => {const n=prompt('Nombre del proyecto:',project.name)?.trim();if(n)change(p=>({...p,name:n}));}}>{project.name}<ChevronDown size={15}/></button>
+        {project._access==='owner'&&<button className="toolbar-button" onClick={()=>setSharing(true)}>Compartir</button>}
         <button className="icon-button" onClick={()=>setShowTree(!showTree)} title={showTree?'Ocultar archivos':'Mostrar archivos'}>{showTree?<PanelLeftClose size={17}/>:<PanelLeftOpen size={17}/>}</button>
       </div>
       <div className="work-top-right">
         <span className={'save-indicator '+(status==='error'?'failed':'')}><Save size={14}/>{status==='guardando'?'Guardando…':status==='editado'?'Cambios pendientes':status==='error'?'Error de guardado':'Guardado en servidor'}</span>
+        <button className="toolbar-button" disabled={compiling || applyingAI || status==='guardando'} onClick={()=>void reloadRemote()}>Actualizar proyecto</button>
         <button className="toolbar-button" onClick={()=>void exportProjectZip(project)}><Download size={16}/> Exportar ZIP</button>
         <button className="toolbar-button" onClick={()=>void openHistory()}><Clock3 size={16}/> Historial</button>
         <button className="toolbar-button" onClick={()=>setShowLog(!showLog)}><Terminal size={16}/> Registro</button>
-        <button className="compile-button" onClick={()=>void compile()} disabled={compiling || applyingAI || Boolean(review)}><Play size={15} fill="currentColor"/>{compiling?'Compilando…':'Compilar PDF'}</button>
+        <button className="compile-button" onClick={()=>void compile()} disabled={!canEdit || status==='error' || compiling || applyingAI || Boolean(review)}><Play size={15} fill="currentColor"/>{compiling?'Compilando…':'Compilar PDF'}</button>
       </div>
     </header>
+    {sharing && <ShareProject id={project.id} name={project.name} onClose={()=>setSharing(false)}/>}
+    {project._access==='reader'&&<div className="collaboration-notice">Acceso de lectura · Puedes consultar y descargar este proyecto.</div>}
+    {workspaceError && <div className="collaboration-notice" role="alert"><span>{workspaceError}</span>
+      <button onClick={()=>void exportProjectZip(project)}>Exportar mis cambios ZIP</button>
+      <button onClick={()=>void reloadRemote()}>Cargar versión del servidor</button></div>}
     <div className="work-body">
       {showTree && <aside className="file-panel" style={{width:treeWidth}}>
         <div className="file-panel-heading"><div className="file-tabs"><button className={sideTab==='files'?'selected':''} onClick={()=>setSideTab('files')}>Archivos</button><button className={sideTab==='chats'?'selected':''} onClick={()=>setSideTab('chats')}>Conversaciones</button></div><div>
-          <button className="icon-button" onClick={()=>uploadRef.current?.click()} title="Importar archivos"><Import size={16}/></button>
-          <button className="icon-button" onClick={createFile} title="Nuevo archivo"><Plus size={16}/></button>
+          <button className="icon-button" disabled={!canEdit} onClick={()=>uploadRef.current?.click()} title="Importar archivos"><Import size={16}/></button>
+          <button className="icon-button" disabled={!canEdit} onClick={createFile} title="Nuevo archivo"><Plus size={16}/></button>
         </div></div>
         <input type="file" ref={uploadRef} multiple hidden onChange={e=>{void importAssets(e.target.files);e.target.value='';}}/>
         {sideTab==='files'?<div className="file-list">
@@ -401,15 +434,15 @@ export function Workspace() {
           </div>}
           <div className="editor-container">
             {active?.encoding === 'utf8' ? <LatexCodeEditor key={activeFile} value={active.content}
-              editable={!applyingAI && !compiling && !review}
+              editable={canEdit && status!=='error' && !applyingAI && !compiling && !review}
               reviewEdits={review?.filePath === activeFile ? review.edits : []}
               onChange={updateContent}/>
               : <div className="binary-preview"><FileText size={35}/><h3>{activeFile}</h3><p>Archivo de recurso binario. Se incluirá en la compilación y exportación ZIP.</p></div>}
           </div>
-          <AIChat source={active?.encoding==='utf8'?active.content:''} activeFile={activeFile}
+          {canEdit && <AIChat projectId={project.id} source={active?.encoding==='utf8'?active.content:''} activeFile={activeFile}
             lastLog={project.lastLog} initialMessages={project.chats || []}
             onMessagesChange={messages=>change(p=>({...p,chats:messages}))}
-            onReviewProposal={reviewAIProposal} reviewingIndex={review?.messageIndex ?? null}/>
+            onReviewProposal={reviewAIProposal} reviewingIndex={review?.messageIndex ?? null}/>}
         </div>}
         {!previewFull && <div className="drag-handle" onMouseDown={e=>startResize('preview',e)} title="Redimensionar PDF"/>}
         <section className="pdf-panel" style={previewFull?{flex:1}:{width:pdfWidth+'%'}}>
@@ -426,7 +459,7 @@ export function Workspace() {
           </div>
           <div className="pdf-surface">
             {hasPdf ? <div className="pdf-zoom-wrapper"><iframe ref={pdfFrameRef} title="Vista previa de documento PDF" className="pdf-iframe" style={{width:zoom+'%', height:zoom+'%', minWidth:'100%',minHeight:'100%'}}/></div>
-            : <div className="pdf-placeholder"><div className="blank-document"><div className="paper-head"/><div className="paper-line"/><div className="paper-line short"/><div className="paper-heading"/><div className="paper-line"/><div className="paper-line"/></div><h3>Vista previa del documento</h3><p>Presiona <b>Compilar PDF</b> para visualizar tu investigación.</p><button className="pill primary" disabled={compiling} onClick={()=>void compile()}><Play size={15}/> Compilar ahora</button></div>}
+            : <div className="pdf-placeholder"><div className="blank-document"><div className="paper-head"/><div className="paper-line"/><div className="paper-line short"/><div className="paper-heading"/><div className="paper-line"/><div className="paper-line"/></div><h3>Vista previa del documento</h3><p>Presiona <b>Compilar PDF</b> para visualizar tu investigación.</p><button className="pill primary" disabled={!canEdit || status==='error' || compiling} onClick={()=>void compile()}><Play size={15}/> Compilar ahora</button></div>}
           </div>
           {(compileMessage || project.lastLog || hasPdf) && <div className="pdf-status"><span>{compileMessage || 'Compilación anterior'}{hasPdf ? ' · Si el visor está en blanco, pulsa Abrir PDF' : ''}</span><button onClick={()=>setShowLog(!showLog)}>{showLog?'Ocultar registro':'Ver registro'}</button></div>}
           {showLog && <div className="compile-log"><div><b>Registro de compilación</b><button className="icon-button" onClick={()=>setShowLog(false)}><X size={15}/></button></div><pre>{compileMessage + '\n\n' + (project.lastLog || 'Sin registro de compilación anterior.')}</pre></div>}
@@ -435,10 +468,10 @@ export function Workspace() {
       {showHistory && <aside className="history-drawer">
         <header><b><Clock3 size={16}/> Versiones locales</b><button className="icon-button" onClick={()=>setShowHistory(false)} aria-label="Cerrar historial"><X size={17}/></button></header>
         <p>Hasta 20 instantáneas por proyecto. Al compilar se guarda una versión de las fuentes.</p>
-        <button className="pill primary" onClick={()=>void captureSnapshot()}><Plus size={15}/> Guardar instantánea</button>
+        <button className="pill primary" disabled={!canEdit || status==='error'} onClick={()=>void captureSnapshot()}><Plus size={15}/> Guardar instantánea</button>
         <div className="history-items">{snapshots.map(snapshot=><div key={snapshot.id} className="history-item">
           <span><b>{new Date(snapshot.createdAt).toLocaleString('es-CL')}</b><small>{snapshot.files.length} archivos</small></span>
-          <button onClick={()=>restoreSnapshot(snapshot)}>Restaurar</button>
+          <button disabled={!canEdit || status==='error'} onClick={()=>restoreSnapshot(snapshot)}>Restaurar</button>
         </div>)}{snapshots.length===0&&<p>Aún no hay instantáneas.</p>}</div>
       </aside>}
     </div>
@@ -447,7 +480,7 @@ export function Workspace() {
   function renderFile(f:SynapseFile,nested:boolean) {
     return <div key={f.path} className={'file-row '+(f.path===activeFile?'file-active':'')+(nested?' nested':'')}>
       <button className="file-open" onClick={()=>setActiveFile(f.path)} title={f.path}><FileText size={15}/><span>{nested?f.path.split('/').slice(1).join('/'):f.path}</span></button>
-      <details className="file-more"><summary title="Acciones de archivo"><MoreHorizontal size={14}/></summary><div className="menu-popover"><button onClick={()=>renameFile(f.path)}>Renombrar</button>{f.path.endsWith('.tex')&&<button onClick={()=>setMainFile(f.path)}>Establecer principal</button>}<button className="danger" onClick={()=>removeFile(f.path)}><Trash2 size={13}/> Eliminar</button></div></details>
+      {canEdit && <details className="file-more"><summary title="Acciones de archivo"><MoreHorizontal size={14}/></summary><div className="menu-popover"><button onClick={()=>renameFile(f.path)}>Renombrar</button>{f.path.endsWith('.tex')&&<button onClick={()=>setMainFile(f.path)}>Establecer principal</button>}<button className="danger" onClick={()=>removeFile(f.path)}><Trash2 size={13}/> Eliminar</button></div></details>}
     </div>;
   }
 }

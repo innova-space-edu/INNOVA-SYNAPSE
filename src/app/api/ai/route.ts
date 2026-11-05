@@ -1,4 +1,6 @@
-import { verifySynapseAdmin } from '@/lib/server/access';
+import { verifySynapseUser } from '@/lib/server/access';
+import { projectRole, sameOrigin } from '@/lib/server/collaboration';
+import { validUuid } from '@/lib/server/validate';
 import { NextResponse } from 'next/server';
 import { parseAIEditResponse } from '@/lib/ai-edits';
 import { agentInstructions, isAgentMode, quickYearProposal } from '@/lib/ai-agents';
@@ -17,16 +19,21 @@ const providers = {
 type Provider = keyof typeof providers;
 
 export async function POST(req: Request) {
-  if (!await verifySynapseAdmin(req)) return NextResponse.json({error:'Acceso administrativo requerido'},{status:403});
+  if (!sameOrigin(req)) return NextResponse.json({error:'Origen inválido'},{status:403});
+  const user=await verifySynapseUser(req);
+  if (!user) return NextResponse.json({error:'Acceso administrativo requerido'},{status:403});
   // No public access until an authenticated, quota-aware server is in place.
   try {
     const raw = await req.text();
     if (raw.length > 85000) return NextResponse.json({ error: 'Solicitud demasiado grande' }, { status: 413 });
-    let input: { provider?: string; prompt?: string; source?: string; filePath?: string; mode?: string; lastLog?: string; history?: {role: string;content: string}[] };
+    let input: { projectId?: string; provider?: string; prompt?: string; source?: string; filePath?: string; mode?: string; lastLog?: string; history?: {role: string;content: string}[] };
     try { input = JSON.parse(raw); }
     catch { return NextResponse.json({error:'La solicitud del asistente no contiene JSON válido.'},{status:400}); }
     if (!input || typeof input !== 'object' || Array.isArray(input))
       return NextResponse.json({error:'Formato de solicitud no admitido.'},{status:400});
+    if(!validUuid(input.projectId || '')) return NextResponse.json({error:'Proyecto inválido'},{status:400});
+    const role=await projectRole(input.projectId!,user.email);
+    if(role!=='owner' && role!=='editor') return NextResponse.json({error:'Permiso de edición requerido'},{status:403});
     if (!input.provider || !(input.provider in providers)) return NextResponse.json({ error: 'Proveedor no admitido' }, { status: 400 });
     if (typeof input.prompt !== 'string' || input.prompt.length < 1 || input.prompt.length > 6000)
       return NextResponse.json({ error: 'Mensaje inválido' }, { status: 400 });

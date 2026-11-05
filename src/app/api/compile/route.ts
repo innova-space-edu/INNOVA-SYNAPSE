@@ -1,10 +1,14 @@
-import { verifySynapseAdmin } from '@/lib/server/access';
+import { verifySynapseUser } from '@/lib/server/access';
+import { projectRole, sameOrigin } from '@/lib/server/collaboration';
+import { validUuid } from '@/lib/server/validate';
 import { NextResponse } from 'next/server';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
-  if (!await verifySynapseAdmin(req)) return NextResponse.json({error:'Acceso administrativo requerido'},{status:403});
+  if (!sameOrigin(req)) return NextResponse.json({error:'Origen inválido'},{status:403});
+  const user=await verifySynapseUser(req);
+  if (!user) return NextResponse.json({error:'Acceso administrativo requerido'},{status:403});
   // MVP restricted to trusted/local environments; enforce auth + rate limits before publishing.
   const compiler = process.env.LATEX_COMPILER_URL;
   const token = process.env.LATEX_COMPILER_TOKEN;
@@ -15,6 +19,10 @@ export async function POST(req: Request) {
     const body: unknown = JSON.parse(raw);
     if (!body || typeof body !== 'object' || !('files' in body) || !Array.isArray(body.files) || body.files.length > 150)
       return NextResponse.json({ error: 'Proyecto inválido', log: '' }, { status: 400 });
+    const projectId = 'projectId' in body && typeof body.projectId==='string' ? body.projectId : '';
+    if(!validUuid(projectId)) return NextResponse.json({error:'Proyecto inválido'},{status:400});
+    const role=await projectRole(projectId,user.email);
+    if(role!=='owner' && role!=='editor') return NextResponse.json({error:'Permiso de edición requerido'},{status:403});
     const result = await fetch(new URL('/compile', compiler), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },

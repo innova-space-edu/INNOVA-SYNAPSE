@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { verifySynapseAdmin } from '@/lib/server/access';
+import { verifySynapseUser } from '@/lib/server/access';
+import { projectRole, sameOrigin } from '@/lib/server/collaboration';
 import { db } from '@/lib/server/database';
 import { parseProject, validUuid } from '@/lib/server/validate';
 import type { SynapseProject } from '@/lib/types';
@@ -7,20 +8,22 @@ export const runtime='nodejs';
 export const dynamic='force-dynamic';
 type Context={params:Promise<{id:string}>};
 export async function GET(req:Request,context:Context){
- const admin=await verifySynapseAdmin(req);
+ const admin=await verifySynapseUser(req);
  if(!admin) return NextResponse.json({error:'Acceso denegado'},{status:403});
  const {id}=await context.params;
  if(!validUuid(id)) return NextResponse.json({error:'Id inválido'},{status:400});
  try {
+  if(!await projectRole(id,admin.email)) return NextResponse.json({error:'Proyecto no autorizado'},{status:404});
   const rows=await db()`
    SELECT id, project_id, created_at, payload FROM synapse_snapshots
-   WHERE project_id=${id}::uuid AND owner_email=${admin.email}
+   WHERE project_id=${id}::uuid
    ORDER BY created_at DESC LIMIT 20`;
   return NextResponse.json(rows.map(r=>({...r.payload,id:r.id,projectId:r.project_id,createdAt:r.created_at})),{headers:{'Cache-Control':'no-store'}});
  } catch {return NextResponse.json({error:'No se pudo consultar versiones'},{status:503});}
 }
 export async function POST(req:Request,context:Context){
- const admin=await verifySynapseAdmin(req);
+ if(!sameOrigin(req)) return NextResponse.json({error:'Origen inválido'},{status:403});
+ const admin=await verifySynapseUser(req);
  if(!admin) return NextResponse.json({error:'Acceso denegado'},{status:403});
  const {id}=await context.params;
  if(!validUuid(id)) return NextResponse.json({error:'Id inválido'},{status:400});
@@ -40,16 +43,22 @@ export async function POST(req:Request,context:Context){
   input = {name: validated.name, mainFile: validated.mainFile, files: validated.files};
  } catch {return NextResponse.json({error:'Instantánea inválida'},{status:400});}
  try {
-  const sql=db();
-  const existing=await sql`SELECT id FROM synapse_projects WHERE id=${id}::uuid AND owner_email=${admin.email}`;
-  if(!existing.length) return NextResponse.json({error:'Proyecto no autorizado'},{status:404});
   const snapshotId=crypto.randomUUID();
-  await sql`INSERT INTO synapse_snapshots (id,project_id,owner_email,payload)
+  const created=await db().begin(async sql=>{
+   // Same project lock as saves/revocations: removed editors cannot create versions.
+   const rows=await sql`SELECT owner_email FROM synapse_projects WHERE id=${id}::uuid FOR UPDATE`;
+   const owner=rows[0]?.owner_email===admin.email;
+   const members=owner?[]:await sql`SELECT role FROM synapse_members WHERE project_id=${id}::uuid AND email=${admin.email} AND status='accepted'`;
+   if(!owner && members[0]?.role!=='editor')return false;
+   await sql`INSERT INTO synapse_snapshots (id,project_id,owner_email,payload)
     VALUES (${snapshotId}::uuid,${id}::uuid,${admin.email},${sql.json(input)}::jsonb)`;
-  await sql`DELETE FROM synapse_snapshots WHERE id IN (
-    SELECT id FROM synapse_snapshots WHERE project_id=${id}::uuid AND owner_email=${admin.email}
+   await sql`DELETE FROM synapse_snapshots WHERE id IN (
+    SELECT id FROM synapse_snapshots WHERE project_id=${id}::uuid
     ORDER BY created_at DESC,id DESC OFFSET 20
-  )`;
+   )`;
+   return true;
+  });
+  if(!created)return NextResponse.json({error:'Proyecto no autorizado'},{status:404});
   return NextResponse.json({id:snapshotId,projectId:id,createdAt:new Date().toISOString(),...input});
  } catch {return NextResponse.json({error:'Error al guardar instantánea'},{status:503});}
 }

@@ -1,14 +1,21 @@
 import { NextResponse } from 'next/server';
-import { verifySynapseAdmin } from '@/lib/server/access';
+import { verifySynapseUser } from '@/lib/server/access';
 import { db } from '@/lib/server/database';
-import { logProjectDatabaseFailure } from '@/lib/server/db-diagnostics';
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
 export async function GET(req:Request) {
- const admin=await verifySynapseAdmin(req);
- if(!admin) return NextResponse.json({error:'Acceso denegado'},{status:403});
+ const user=await verifySynapseUser(req);
+ if(!user) return NextResponse.json({error:'Acceso denegado'},{status:403});
  try {
-  const rows=await db()`SELECT document FROM synapse_projects WHERE owner_email=${admin.email} ORDER BY updated_at DESC LIMIT 500`;
-  return NextResponse.json(rows.map(r=>r.document),{headers:{'Cache-Control':'no-store'}});
- } catch (error) { logProjectDatabaseFailure('list', error); return NextResponse.json({error:'No se pudo consultar la base de datos SYNAPSE'},{status:503}); }
+  const rows=await db()`
+   SELECT p.document,p.owner_email,p.revision,
+    CASE WHEN p.owner_email=${user.email} THEN 'owner' ELSE m.role END AS role
+   FROM synapse_projects p LEFT JOIN synapse_members m
+    ON m.project_id=p.id AND m.email=${user.email} AND m.status='accepted'
+   WHERE p.owner_email=${user.email} OR m.id IS NOT NULL
+   ORDER BY p.updated_at DESC LIMIT 500`;
+  return NextResponse.json(rows.map(r=>typeof r.document === 'object' && r.document
+   ? {...r.document,_revision:String(r.revision),_access:r.role,_owner:r.owner_email} : r.document),
+   {headers:{'Cache-Control':'no-store'}});
+ } catch { return NextResponse.json({error:'No se pudo consultar proyectos. Comprueba la migración 003.'},{status:503}); }
 }
