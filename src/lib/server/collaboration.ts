@@ -10,7 +10,19 @@ export async function projectRole(id: string, email: string): Promise<ProjectRol
 }
 export function sameOrigin(req: Request) {
  const origin = req.headers.get('origin');
- return !origin || origin === new URL(req.url).origin;
+ if (!origin) return true; // Non-browser tools still require the signed Access JWT.
+ try {
+  const candidate = new URL(origin);
+  if (candidate.origin !== origin) return false;
+  // A tunnel may give Next.js an internal URL. Prefer the configured public origin.
+  const configured = process.env.SYNAPSE_PUBLIC_URL?.trim();
+  if (configured) return candidate.origin === new URL(configured).origin;
+  if (candidate.origin === new URL(req.url).origin) return true;
+  // Host is the original HTTP authority. Never accept X-Forwarded-Host as authority.
+  const host = req.headers.get('host');
+  const protocol = req.headers.get('x-forwarded-proto')?.split(',')[0].trim();
+  return protocol === 'https' && candidate.protocol === 'https:' && candidate.host === host;
+ } catch { return false; }
 }
 export function validEmail(value: unknown): value is string {
  return typeof value === 'string' && value.length <= 254 && /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(value);

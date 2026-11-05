@@ -8,7 +8,9 @@ import { ArrowLeft, Clock3, ChevronDown, ChevronRight, ChevronsLeft, Download, F
   PanelLeftOpen, Play, Plus, Save, Terminal, Trash2, X, Check, ZoomIn, ZoomOut } from 'lucide-react';
 import { ShareProject } from './share-project';
 import { AIChat } from './ai-chat';
-import { loadProject, saveProject, listSnapshots, saveSnapshot } from '@/lib/storage';
+import { ApiError, loadSession, projectRevision, loadProject, saveProject, listSnapshots, saveSnapshot } from '@/lib/storage';
+import { clearLocalDraft, readLocalDraft, sameProjectContent, writeLocalDraft, type LocalDraft } from '@/lib/local-drafts';
+import { PdfPreview } from './pdf-preview';
 import { exportProjectZip, safePath } from '@/lib/zip';
 import { pdfBlobFromBase64 } from '@/lib/pdf-client';
 import { applyAITextEdits, sourceFingerprint, type AITextEdit } from '@/lib/ai-edits';
@@ -58,10 +60,17 @@ export function Workspace() {
   const [showHistory, setShowHistory] = useState(false);
   const [snapshots, setSnapshots] = useState<ProjectSnapshot[]>([]);
   const [compileMessage, setCompileMessage] = useState('');
+  const [compileLog,setCompileLog]=useState('');
   const [zoom, setZoom] = useState(100);
   const [previewFull, setPreviewFull] = useState(false);
   const [workspaceError, setWorkspaceError] = useState('');
-  const pdfFrameRef = useRef<HTMLIFrameElement>(null);
+  const [draftEmail,setDraftEmail]=useState('');
+  const [recovery,setRecovery]=useState<LocalDraft|null>(null);
+  const [draftError,setDraftError]=useState('');
+  const [exitRequested,setExitRequested]=useState(false);
+  const [exiting,setExiting]=useState(false);
+  const exitDialog=useRef<HTMLDialogElement>(null);
+  const draftQueue=useRef<Promise<void>>(Promise.resolve());
   const lastPdf = project?.lastPdf;
   const pdfBlob = useMemo(() => {
     if (!lastPdf) return null;
@@ -75,10 +84,19 @@ export function Workspace() {
 
   useEffect(() => {
     let alive = true;
-    loadProject(params.id).then(p => {
+    Promise.all([loadProject(params.id),loadSession()]).then(async ([p,session]) => {
       if (!alive) return;
       if (!p) { router.replace('/'); return; }
+      setDraftEmail(session.email);
       setProject(p); setActiveFile(p.mainFile); setStatus('guardado');
+      if(p._access==='owner' || p._access==='editor') {
+        try {
+          const draft=await readLocalDraft(session.email,p.id);
+          if(!alive)return;
+          if(draft && !sameProjectContent(draft.project,p))setRecovery(draft);
+          else if(draft)await clearLocalDraft(session.email,p.id,draft.project.updatedAt);
+        }catch {if(alive)setDraftError('El navegador no permite conservar una copia local. Puedes exportar un ZIP.');}
+      }
     }).catch((error: unknown) => {
       if (alive) setWorkspaceError(error instanceof Error ? error.message : 'No fue posible recuperar este proyecto.');
     });
@@ -86,13 +104,16 @@ export function Workspace() {
   }, [params.id, router]);
 
   useEffect(() => {
-    if (!project || !canEdit || status!=='editado' || compiling || applyingAI) return;
+    if (!project || !canEdit || status!=='editado' || compiling || applyingAI || exitRequested || exiting) return;
     const generation=editGeneration.current;
     autosaveTimer.current = window.setTimeout(() => {
       setStatus('guardando');
       saveQueue.current = saveQueue.current.catch(() => undefined).then(() => saveProject(project));
       void saveQueue.current.then(() => {
-        if(editGeneration.current===generation)setStatus('guardado');
+        if(editGeneration.current===generation){
+          setStatus('guardado');setWorkspaceError('');
+          if(draftEmail)void draftQueue.current.then(()=>clearLocalDraft(draftEmail,project.id,project.updatedAt)).catch(()=>undefined);
+        }
       }).catch((error:unknown) => {
         setStatus('error');
         setWorkspaceError(error instanceof Error?error.message:'No se pudo guardar.');
@@ -101,19 +122,20 @@ export function Workspace() {
     return () => {
       if (autosaveTimer.current !== null) window.clearTimeout(autosaveTimer.current);
     };
-  }, [project,canEdit,status,compiling,applyingAI]);
+  }, [project,canEdit,status,compiling,applyingAI,exitRequested,exiting,draftEmail]);
 
   useEffect(() => {
-    if (!pdfBlob) return;
-    const frame = pdfFrameRef.current;
-    if (!frame) return;
-    const objectUrl = URL.createObjectURL(pdfBlob);
-    frame.src = objectUrl + '#toolbar=0&navpanes=0';
-    return () => {
-      frame.removeAttribute('src');
-      URL.revokeObjectURL(objectUrl);
-    };
-  }, [pdfBlob]);
+    if(!project || !draftEmail || !canEdit || status==='guardado' || status==='cargando')return;
+    const revision=projectRevision(project.id);
+    draftQueue.current=draftQueue.current.catch(()=>undefined).then(()=>writeLocalDraft(draftEmail,project,revision));
+    void draftQueue.current.catch(()=>setDraftError('No se pudo conservar la copia local. Exporta un ZIP antes de salir.'));
+  },[project,draftEmail,canEdit,status]);
+
+  useEffect(()=>{
+    const dialog=exitDialog.current;
+    if(exitRequested && !dialog?.open)dialog?.showModal();
+    else if(!exitRequested && dialog?.open)dialog.close();
+  },[exitRequested]);
 
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
@@ -123,25 +145,48 @@ export function Workspace() {
     return () => window.removeEventListener('beforeunload', warn);
   }, [status]);
 
-  async function exitWorkspace() {
+  function exitWorkspace() {
     if (!project) return;
-    if (!canEdit) {router.push('/');return;}
-    if (status==='error') {setWorkspaceError('Exporta tus cambios como ZIP antes de salir o cargar la versión del servidor.');return;}
+    if (!canEdit || status==='guardado') {router.push('/');return;}
+    if(autosaveTimer.current!==null)window.clearTimeout(autosaveTimer.current);
+    setExitRequested(true);
+  }
+  async function finishExit(saveOnServer:boolean) {
+    if(!project || exiting)return;
+    setExiting(true);
     try {
-      await saveQueue.current;
-      await saveProject(project);
+      if(saveOnServer){
+        await saveQueue.current.catch(()=>undefined);
+        await saveProject(project);
+        if(draftEmail){await draftQueue.current.catch(()=>undefined);await clearLocalDraft(draftEmail,project.id,project.updatedAt);}
+      }else{
+        if(!draftEmail)throw new Error('No se pudo identificar la cuenta para la copia local. Exporta el ZIP antes de volver.');
+        await draftQueue.current.catch(()=>undefined);
+        await writeLocalDraft(draftEmail,project,projectRevision(project.id));
+      }
       router.push('/');
-    } catch {
-      setStatus('error');
-      alert('No se pudo guardar en el servidor. Exporta primero el ZIP y revisa tu conexión.');
+    }catch(error){
+      setStatus('error');setWorkspaceError(error instanceof Error?error.message:'No se pudo completar la operación.');
+      setExiting(false);
     }
   }
+  async function retrySave(){
+    if(!project || exiting)return;
+    setExiting(true);
+    try{
+      await saveQueue.current.catch(()=>undefined);
+      await saveProject(project);
+      setStatus('guardado');setWorkspaceError('');
+      if(draftEmail){await draftQueue.current.catch(()=>undefined);await clearLocalDraft(draftEmail,project.id,project.updatedAt);}
+    }catch(error){setStatus('error');setWorkspaceError(error instanceof Error?error.message:'No se pudo guardar.');}
+    finally{setExiting(false);}
+  }
     const change = useCallback((update: (old:SynapseProject)=>SynapseProject) => {
-    if(!canEdit || compiling || applyingAI || status==='error')return;
+    if(!canEdit || compiling || applyingAI || exiting || exitRequested || status==='error')return;
     editGeneration.current+=1;
     setProject(old => old ? {...update(old), updatedAt:new Date().toISOString()} : old);
     setStatus('editado');
-  }, [canEdit,status,compiling,applyingAI]);
+  }, [canEdit,status,compiling,applyingAI,exiting,exitRequested]);
   function updateContent(text:string) {
     change(p => ({...p, files:p.files.map(f => f.path === activeFile ? {...f, content:text} : f)}));
   }
@@ -204,7 +249,7 @@ export function Workspace() {
     setStatus('guardando');
     try {
       // Always preserve the previous version before changing any source code.
-      await saveQueue.current;
+      await saveQueue.current.catch(()=>undefined);
       await saveSnapshot(project);
       saveQueue.current = saveQueue.current.catch(() => undefined)
         .then(() => saveProject(revisedProject));
@@ -264,13 +309,15 @@ export function Workspace() {
   }
   async function openHistory() {
     if (!project) return;
-    if (!showHistory) setSnapshots(await listSnapshots(project.id));
-    setShowHistory(!showHistory);
+    try{
+      if (!showHistory) setSnapshots(await listSnapshots(project.id));
+      setShowHistory(!showHistory);
+    }catch(error){setWorkspaceError(error instanceof Error?error.message:'No se pudo abrir el historial.');}
   }
   async function captureSnapshot() {
     if (!project) return;
-    await saveSnapshot(project);
-    setSnapshots(await listSnapshots(project.id));
+    try{await saveSnapshot(project);setSnapshots(await listSnapshots(project.id));}
+    catch(error){setWorkspaceError(error instanceof Error?error.message:'No se pudo guardar la instantánea.');}
   }
   function restoreSnapshot(snapshot: ProjectSnapshot) {
     if (!confirm('¿Restaurar esta versión? Guarda antes una instantánea de los cambios actuales.')) return;
@@ -281,9 +328,10 @@ export function Workspace() {
     setCompiling(true);
     setCompileMessage('Compilando documento…');
     setShowLog(false);
+    let completedLog='';
     try {
       if (createVersion) {
-        await saveQueue.current;
+        await saveQueue.current.catch(()=>undefined);
         await saveProject(target);
         await saveSnapshot(target);
       }
@@ -291,9 +339,13 @@ export function Workspace() {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ projectId:target.id, mainFile:target.mainFile, files:target.files })
       });
-      const data = await response.json() as CompileResult;
+      let data:CompileResult;
+      try{data=await response.json() as CompileResult;}
+      catch{throw new Error('El compilador devolvió una respuesta no válida (HTTP '+response.status+').');}
+      completedLog=data.log || '';
+      setCompileLog(completedLog);
       if (!response.ok || !data.ok || !data.pdf) {
-        throw new Error(data.error || 'La compilación falló.' + (data.log ? '\\n' + data.log : ''));
+        throw new Error(data.error || 'La compilación falló. Revisa el registro.');
       }
       pdfBlobFromBase64(data.pdf);
       const compiled: SynapseProject = {
@@ -312,6 +364,8 @@ export function Workspace() {
       setShowLog(false);
     } catch (error) {
       setCompileMessage(error instanceof Error ? error.message : 'Error al compilar');
+      setCompileLog(completedLog);
+      if(error instanceof ApiError){setStatus('error');setWorkspaceError(error.message);}
       setShowLog(true);
       // A failed automatic compile must not undo a successfully saved edit.
     } finally {
@@ -322,6 +376,10 @@ export function Workspace() {
   async function compile() {
     if (!canEdit || !project || compiling || applyingAI || review || status==='error') return;
     await compileProject(project, true);
+  }
+  async function exportZip(target:SynapseProject){
+    try{await exportProjectZip(target);}
+    catch(error){setWorkspaceError(error instanceof Error?error.message:'No se pudo exportar el ZIP.');}
   }
   function downloadPdf() {
     if (!pdfBlob || !project) return;
@@ -350,7 +408,7 @@ export function Workspace() {
       const fresh=await loadProject(params.id);
       if(!fresh)throw new Error('Ya no tienes acceso al proyecto.');
       setProject(fresh);setActiveFile(fresh.mainFile);setReview(null);
-      setWorkspaceError('');setStatus('guardado');
+      setWorkspaceError('');setStatus('guardado');setRecovery(null);
     }catch(e){setWorkspaceError(e instanceof Error?e.message:'No se pudo cargar el proyecto.');}
   }
   function startResize(kind:'tree'|'preview', e:React.MouseEvent<HTMLDivElement>) {
@@ -376,7 +434,7 @@ export function Workspace() {
   return <div className="workspace">
     <header className="work-topbar">
       <div className="work-top-left">
-        <button className="work-projects-link" onClick={() => void exitWorkspace()} title="Guardar y volver a proyectos creados" aria-label="Guardar y volver a proyectos creados"><ArrowLeft size={19}/><span>Proyectos</span></button>
+        <button disabled={exiting} className="work-projects-link" onClick={() => void exitWorkspace()} title="Volver a proyectos" aria-label="Volver a proyectos"><ArrowLeft size={19}/><span>Proyectos</span></button>
         <div className="mini-logo"><Image src="/brand/synapse-symbol.svg" width={20} height={20} alt="INNOVA SYNAPSE" /></div>
         <span className="divider-vertical"/>
         <button className="project-selector" disabled={!canEdit} onClick={() => {const n=prompt('Nombre del proyecto:',project.name)?.trim();if(n)change(p=>({...p,name:n}));}}>{project.name}<ChevronDown size={15}/></button>
@@ -386,16 +444,39 @@ export function Workspace() {
       <div className="work-top-right">
         <span role="status" aria-live="polite" title="Autoguardado tras 2 segundos sin editar" className={'save-indicator '+(status==='error'?'failed':'')}><Save size={14}/>{status==='guardando'?'Guardando…':status==='editado'?'Pendiente · autoguardado tras 2 s':status==='error'?'Error de guardado':'Guardado en servidor'}</span>
         <button className="toolbar-button" disabled={compiling || applyingAI || status==='guardando'} onClick={()=>void reloadRemote()}>Actualizar proyecto</button>
-        <button className="toolbar-button" onClick={()=>void exportProjectZip(project)}><Download size={16}/> Exportar ZIP</button>
+        <button className="toolbar-button" onClick={()=>void exportZip(project)}><Download size={16}/> Exportar ZIP</button>
         <button className="toolbar-button" onClick={()=>void openHistory()}><Clock3 size={16}/> Historial</button>
         <button className="toolbar-button" onClick={()=>setShowLog(!showLog)}><Terminal size={16}/> Registro</button>
         <button className="compile-button" onClick={()=>void compile()} disabled={!canEdit || status==='error' || compiling || applyingAI || Boolean(review)}><Play size={15} fill="currentColor"/>{compiling?'Compilando…':'Compilar PDF'}</button>
       </div>
     </header>
+    <dialog ref={exitDialog} className="share-dialog exit-project-dialog" aria-labelledby="exit-title" onCancel={()=>setExitRequested(false)} onClose={()=>setExitRequested(false)}>
+      <h2 id="exit-title">Volver a proyectos</h2>
+      <p>Hay cambios pendientes de guardar en el servidor. Puedes volver conservando una copia local en este navegador.</p>
+      {workspaceError && <p role="alert">{workspaceError}</p>}
+      <div className="exit-actions">
+        <button disabled={exiting} onClick={()=>void finishExit(true)}>Guardar y volver</button>
+        <button disabled={exiting} onClick={()=>void finishExit(false)}>Volver con copia local</button>
+        <button disabled={exiting} onClick={()=>void exportZip(project)}>Exportar ZIP</button>
+        <button disabled={exiting} onClick={()=>setExitRequested(false)}>Seguir editando</button>
+      </div>
+    </dialog>
+    {draftError && <div className="collaboration-notice" role="alert">{draftError}</div>}
+    {recovery && <div className="collaboration-notice" role="status"><span>Hay una copia local con cambios pendientes de {new Date(recovery.savedAt).toLocaleString('es-CL')}.</span>
+      <button onClick={()=>void exportZip(recovery.project)}>Exportar copia local</button>
+      <button disabled={!canEdit || recovery.revision!==projectRevision(project.id)} onClick={()=>{
+        const draft=recovery.project;
+        change(p=>({...p,name:draft.name,mainFile:draft.mainFile,files:draft.files,chats:draft.chats,lastPdf:draft.lastPdf,lastLog:draft.lastLog}));
+        setRecovery(null);
+      }}>Recuperar cambios</button>
+      <small>{recovery.revision!==projectRevision(project.id)?'El servidor tiene otra versión; exporta la copia local para comparar.':''}</small>
+    </div>}
     {sharing && <ShareProject id={project.id} name={project.name} onClose={()=>setSharing(false)}/>}
     {project._access==='reader'&&<div className="collaboration-notice">Acceso de lectura · Puedes consultar y descargar este proyecto.</div>}
     {workspaceError && <div className="collaboration-notice" role="alert"><span>{workspaceError}</span>
-      <button onClick={()=>void exportProjectZip(project)}>Exportar mis cambios ZIP</button>
+      <button onClick={()=>void exportZip(project)}>Exportar mis cambios ZIP</button>
+      <button disabled={exiting || !canEdit} onClick={()=>void retrySave()}>Reintentar guardado</button>
+      <button onClick={()=>void exitWorkspace()}>Volver a proyectos</button>
       <button onClick={()=>void reloadRemote()}>Cargar versión del servidor</button></div>}
     <div className="work-body">
       {showTree && <aside className="file-panel" style={{width:treeWidth}}>
@@ -451,20 +532,20 @@ export function Workspace() {
           <div className="pdf-toolbar">
             <div className="pdf-left"><FileText size={17}/><b>Vista PDF</b><span className="muted tiny">{hasPdf?'PDF disponible':project.lastPdf?'PDF guardado inválido':'Sin compilar'}</span></div>
             <div className="pdf-controls">
-              <button className="icon-button" title="Reducir" onClick={()=>setZoom(z=>Math.max(60,z-10))}><ZoomOut size={17}/></button>
-              <span className="zoom-label">{zoom}%</span>
-              <button className="icon-button" title="Ampliar" onClick={()=>setZoom(z=>Math.min(160,z+10))}><ZoomIn size={17}/></button>
+              <button className="icon-button" title="Reducir" aria-label="Reducir PDF" disabled={!hasPdf || zoom<=50} onClick={()=>setZoom(z=>Math.max(50,z-10))}><ZoomOut size={17}/></button>
+              <button className="zoom-reset" title="Ajustar PDF al ancho" aria-label="Ajustar PDF al ancho" disabled={!hasPdf} onClick={()=>setZoom(100)}>{zoom}%</button>
+              <button className="icon-button" title="Ampliar" aria-label="Ampliar PDF" disabled={!hasPdf || zoom>=200} onClick={()=>setZoom(z=>Math.min(200,z+10))}><ZoomIn size={17}/></button>
               <button className="icon-button" title={previewFull?'Salir de vista amplia':'Ampliar vista PDF'} onClick={()=>setPreviewFull(!previewFull)}><Maximize size={16}/></button>
               {hasPdf && <button className="pdf-open-link" type="button" onClick={openPdf} title="Abrir el PDF en una pestaña nueva">Abrir PDF</button>}
               <button className="icon-button" title="Descargar PDF" onClick={downloadPdf} disabled={!hasPdf}><Download size={17}/></button>
             </div>
           </div>
           <div className="pdf-surface">
-            {hasPdf ? <div className="pdf-zoom-wrapper"><iframe ref={pdfFrameRef} title="Vista previa de documento PDF" className="pdf-iframe" style={{width:zoom+'%', height:zoom+'%', minWidth:'100%',minHeight:'100%'}}/></div>
+            {hasPdf && pdfBlob ? <PdfPreview blob={pdfBlob} zoom={zoom}/>
             : <div className="pdf-placeholder"><div className="blank-document"><div className="paper-head"/><div className="paper-line"/><div className="paper-line short"/><div className="paper-heading"/><div className="paper-line"/><div className="paper-line"/></div><h3>Vista previa del documento</h3><p>Presiona <b>Compilar PDF</b> para visualizar tu investigación.</p><button className="pill primary" disabled={!canEdit || status==='error' || compiling} onClick={()=>void compile()}><Play size={15}/> Compilar ahora</button></div>}
           </div>
-          {(compileMessage || project.lastLog || hasPdf) && <div className="pdf-status"><span>{compileMessage || 'Compilación anterior'}{hasPdf ? ' · Si el visor está en blanco, pulsa Abrir PDF' : ''}</span><button onClick={()=>setShowLog(!showLog)}>{showLog?'Ocultar registro':'Ver registro'}</button></div>}
-          {showLog && <div className="compile-log"><div><b>Registro de compilación</b><button className="icon-button" onClick={()=>setShowLog(false)}><X size={15}/></button></div><pre>{compileMessage + '\n\n' + (project.lastLog || 'Sin registro de compilación anterior.')}</pre></div>}
+          {(compileMessage || project.lastLog || hasPdf) && <div className="pdf-status"><span>{compileMessage || 'Compilación anterior'}{hasPdf ? ' · '+zoom+'% del ancho disponible' : ''}</span><button onClick={()=>setShowLog(!showLog)}>{showLog?'Ocultar registro':'Ver registro'}</button></div>}
+          {showLog && <div className="compile-log"><div><b>Registro de compilación</b><button className="icon-button" onClick={()=>setShowLog(false)}><X size={15}/></button></div><pre>{compileMessage + '\n\n' + (compileLog || project.lastLog || 'Sin registro de compilación anterior.')}</pre></div>}
         </section>
       </main>
       {showHistory && <aside className="history-drawer">

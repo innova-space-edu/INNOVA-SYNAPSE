@@ -106,3 +106,21 @@ jobs:
         env:
           SYNAPSE_JSONB_TEST_URL: postgres://synapse:ci-only-password@127.0.0.1:5432/synapse
         run: node --test tests/collaboration.integration.mjs
+
+
+  workspace-ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:ui
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: workspace-ui-failure
+          path: test-results/
+          retention-days: 3
