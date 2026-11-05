@@ -5,13 +5,20 @@ import { useParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { ArrowLeft, Clock3, ChevronDown, ChevronRight, ChevronsLeft, Download, FileCode2,
   FileText, Folder, FolderOpen, Import, Maximize, MoreHorizontal, PanelLeftClose,
-  PanelLeftOpen, Play, Plus, Save, Terminal, Trash2, X, ZoomIn, ZoomOut } from 'lucide-react';
+  PanelLeftOpen, Play, Plus, Save, Terminal, Trash2, X, Check, ZoomIn, ZoomOut } from 'lucide-react';
 import { AIChat } from './ai-chat';
 import { loadProject, saveProject, listSnapshots, saveSnapshot } from '@/lib/storage';
 import { exportProjectZip, safePath } from '@/lib/zip';
 import { pdfBlobFromBase64 } from '@/lib/pdf-client';
 import { applyAITextEdits, sourceFingerprint, type AITextEdit } from '@/lib/ai-edits';
-import type { CompileResult, ProjectSnapshot, SynapseFile, SynapseProject } from '@/lib/types';
+import type { ChatMessage, CompileResult, ProjectSnapshot, SynapseFile, SynapseProject } from '@/lib/types';
+
+type ReviewProposal = {
+  messageIndex: number;
+  edits: AITextEdit[];
+  filePath: string;
+  fingerprint: string;
+};
 
 const LatexCodeEditor = dynamic(
   () => import('./latex-code-editor').then(module => module.LatexCodeEditor),
@@ -30,11 +37,13 @@ export function Workspace() {
   const params = useParams<{id:string}>();
   const uploadRef = useRef<HTMLInputElement>(null);
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
+  const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [project, setProject] = useState<SynapseProject | null>(null);
   const [activeFile, setActiveFile] = useState('main.tex');
   const [status, setStatus] = useState<'cargando'|'editado'|'guardando'|'guardado'|'error'>('cargando');
   const [compiling, setCompiling] = useState(false);
   const [applyingAI, setApplyingAI] = useState(false);
+  const [review, setReview] = useState<ReviewProposal | null>(null);
   const [showTree, setShowTree] = useState(true);
   const [sideTab, setSideTab] = useState<'files'|'chats'>('files');
   const [treeWidth, setTreeWidth] = useState(280);
@@ -72,11 +81,13 @@ export function Workspace() {
 
   useEffect(() => {
     if (!project) return;
-    const id = window.setTimeout(() => {
+    autosaveTimer.current = window.setTimeout(() => {
       saveQueue.current = saveQueue.current.catch(() => undefined).then(() => saveProject(project));
       void saveQueue.current.then(() => setStatus('guardado')).catch(() => setStatus('error'));
     }, 650);
-    return () => window.clearTimeout(id);
+    return () => {
+      if (autosaveTimer.current !== null) window.clearTimeout(autosaveTimer.current);
+    };
   }, [project]);
 
   useEffect(() => {
@@ -117,42 +128,83 @@ export function Workspace() {
   function updateContent(text:string) {
     change(p => ({...p, files:p.files.map(f => f.path === activeFile ? {...f, content:text} : f)}));
   }
-  async function applyAIProposal(edits: AITextEdit[], path: string, expectedFingerprint: string): Promise<void> {
-    if (!project) throw new Error('El proyecto todavía no está disponible.');
-    if (compiling || applyingAI) throw new Error('Finaliza primero la operación actual.');
-    if (path !== activeFile) throw new Error('Selecciona el archivo ' + path + ' antes de aplicar esta propuesta.');
-    const file = project.files.find(f => f.path === path);
-    if (!file || file.encoding !== 'utf8') throw new Error('El archivo activo no admite edición de texto.');
-    if (sourceFingerprint(file.content) !== expectedFingerprint) {
-      throw new Error('El archivo cambió desde que se generó la propuesta. Solicita una nueva edición para evitar sobrescribir cambios recientes.');
+  function reviewAIProposal(index: number, message: ChatMessage) {
+    if (applyingAI || compiling || !project || !message.edits?.length ||
+        !message.filePath || !message.sourceFingerprint || message.applied || message.discarded) return;
+    const file = project.files.find(f => f.path === message.filePath);
+    if (!file || file.encoding !== 'utf8') {
+      setCompileMessage('Selecciona un archivo de texto para revisar esta propuesta.');
+      return;
     }
-    // All replacements are validated in memory BEFORE any file is modified.
-    const revisedSource = applyAITextEdits(file.content, edits);
+    setActiveFile(file.path);
+    setReview({
+      messageIndex: index,
+      edits: message.edits,
+      filePath: file.path,
+      fingerprint: message.sourceFingerprint
+    });
+  }
+
+  function rejectAIProposal() {
+    if (!review || applyingAI || compiling) return;
+    const index = review.messageIndex;
+    change(p => ({
+      ...p, chats: (p.chats || []).map((message, i) =>
+        i === index ? {...message, discarded: true} : message)
+    }));
+    setReview(null);
+  }
+
+  async function applyAIProposal() {
+    if (!project || !review || compiling || applyingAI) return;
+    const file = project.files.find(f => f.path === review.filePath);
+    if (!file || file.encoding !== 'utf8') {
+      setCompileMessage('El archivo de esta propuesta no existe.');
+      return;
+    }
+    if (sourceFingerprint(file.content) !== review.fingerprint) {
+      setCompileMessage('El archivo cambió después de generar la propuesta. Solicita una nueva edición.');
+      setReview(null);
+      return;
+    }
+    let revisedSource: string;
+    try {
+      revisedSource = applyAITextEdits(file.content, review.edits);
+    } catch (error) {
+      setCompileMessage(error instanceof Error ? error.message : 'Propuesta de IA no aplicable.');
+      setReview(null);
+      return;
+    }
     const revisedProject: SynapseProject = {
-      ...project,
-      updatedAt: new Date().toISOString(),
-      lastPdf: undefined,
-      lastLog: undefined,
-      files: project.files.map(f => f.path === path ? {...f, content: revisedSource} : f)
+      ...project, updatedAt: new Date().toISOString(),
+      lastPdf: undefined, lastLog: undefined,
+      files: project.files.map(item => item.path === review.filePath
+        ? {...item, content: revisedSource} : item),
+      chats: (project.chats || []).map((message, i) => i === review.messageIndex
+        ? {...message, applied: true} : message)
     };
     setApplyingAI(true);
     setStatus('guardando');
     try {
-      // The user can restore this precise pre-edit state through Historial.
+      // Always preserve the previous version before changing any source code.
       await saveQueue.current;
       await saveSnapshot(project);
-      saveQueue.current = saveQueue.current.catch(() => undefined).then(() => saveProject(revisedProject));
+      saveQueue.current = saveQueue.current.catch(() => undefined)
+        .then(() => saveProject(revisedProject));
       await saveQueue.current;
       setProject(revisedProject);
+      setReview(null);
       setStatus('guardado');
-      setCompileMessage('Cambios de IA guardados. Compila nuevamente para actualizar el PDF.');
+      // Compile the exact revised object; do not read stale React state here.
+      await compileProject(revisedProject, false);
     } catch {
       setStatus('error');
-      throw new Error('No se creó la versión previa o no se pudieron guardar los cambios de IA. El archivo original no fue reemplazado.');
+      setCompileMessage('No se pudo guardar el cambio. El archivo original permanece sin modificar.');
     } finally {
       setApplyingAI(false);
     }
   }
+
   function createFile() {
     const path = prompt('Nombre o ruta del archivo (ej. capitulos/metodo.tex):')?.trim();
     if (!path) return;
