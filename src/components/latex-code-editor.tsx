@@ -8,6 +8,10 @@ import { Decoration, EditorView, WidgetType } from '@codemirror/view';
 import type { AITextEdit } from '@/lib/ai-edits';
 
 const NO_EDITS: AITextEdit[] = [];
+const BASIC_SETUP = {
+  lineNumbers: true, foldGutter: true, highlightActiveLine: true,
+  bracketMatching: true, closeBrackets: true
+};
 
 // CodeMirror must measure and scroll its own scrollDOM, not a flex parent.
 // Keep this theme stable across React renders to preserve scrollTop.
@@ -82,7 +86,11 @@ export function LatexCodeEditor({ value, onChange, editable, reviewEdits = NO_ED
     });
   }, [reviewed, reviewSource]);
 
+  // @uiw uses cm-theme-dark, not cm-theme, for its outer wrapper.
+  // Explicitly add the layout hook used by globals.css so the wrapper has
+  // a bounded height and CodeMirror measures its actual scrolling viewport.
   return <CodeMirror
+    className="cm-theme"
     value={value}
     height="100%"
     theme="dark"
@@ -90,9 +98,6 @@ export function LatexCodeEditor({ value, onChange, editable, reviewEdits = NO_ED
     extensions={extensions}
     onCreateEditor={(view) => { editorView.current = view; }}
     onChange={onChange}
-    basicSetup={{
-      lineNumbers: true, foldGutter: true, highlightActiveLine: true,
-      bracketMatching: true, closeBrackets: true
-    }}
+    basicSetup={BASIC_SETUP}
   />;
 }
