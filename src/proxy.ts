@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { accessConfigured, verifySynapseAdmin } from './lib/server/access';
+import { accessConfigured, verifySynapseUser } from './lib/server/access';
 
 /**
  * Early deny gate; server-side API handlers independently verify authorization.
@@ -8,11 +8,11 @@ import { accessConfigured, verifySynapseAdmin } from './lib/server/access';
  */
 export async function proxy(request: NextRequest) {
   if (request.nextUrl.pathname === '/api/health') return NextResponse.next();
-  const auth = await verifySynapseAdmin(request);
+  const auth = await verifySynapseUser(request);
   if (!auth) {
     const configured = accessConfigured() ||
       (process.env.NODE_ENV !== 'production' && process.env.SYNAPSE_LOCAL_DEV === 'true');
-    return new NextResponse(configured ? 'Acceso denegado. Inicia sesión desde Cloudflare Access con la cuenta administradora.' :
+    return new NextResponse(configured ? 'Acceso denegado. Inicia sesión desde Cloudflare Access con el correo invitado al proyecto.' :
       'INNOVA SYNAPSE no tiene configurado el acceso administrativo.', {
         status: configured ? 403 : 503,
         headers: { 'Cache-Control': 'no-store', 'Content-Type': 'text/plain; charset=utf-8' }

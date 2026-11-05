@@ -147,3 +147,21 @@
 .cm-ai-addition pre{margin:3px 0 0;max-height:130px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;color:#a8efc0}
 @media(max-width:630px){.inline-ai-toolbar-label{font-size:10px;max-width:125px}
   .inline-ai-accept span{display:none}.inline-ai-toolbar{right:7px}}
+
+/* Project collaboration */
+.share-dialog{background:#202023;color:#f3f3f5;border:1px solid #51465f;border-radius:16px;padding:24px;width:min(620px,calc(100% - 24px));max-height:85dvh;overflow:auto;box-shadow:0 20px 80px #0009}
+.share-dialog::backdrop{background:#0009;backdrop-filter:blur(5px)}
+.share-dialog header,.share-dialog footer{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.share-dialog h2{font-size:17px;margin:0 0 20px;overflow-wrap:anywhere}
+.share-dialog h3{font-size:14px;margin-top:24px}
+.share-dialog button,.share-dialog select,.share-dialog input,.invitation-list button,.collaboration-notice button{border:1px solid #5b5269;background:#302b38;color:#f6f3fa;border-radius:8px;padding:8px;font-size:12px}
+.share-dialog label{display:block;font-size:12px;margin-bottom:8px}
+.share-invite{display:flex;gap:8px;flex-wrap:wrap}.share-invite input{flex:1;min-width:160px}
+.share-dialog p{font-size:12px;line-height:1.6}.share-error{color:#ffa2ab}
+.share-members{list-style:none;margin:0;padding:0;max-height:280px;overflow:auto}
+.share-members li{display:flex;gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid #403948;flex-wrap:wrap}
+.share-members li>span{flex:1;min-width:160px;overflow-wrap:anywhere;font-size:12px}
+.share-members small{display:block;color:#b1a7c0;margin-top:5px}.share-dialog footer{margin-top:24px}
+.invitation-list{border:1px solid #61517c;background:#2c2537;border-radius:10px;padding:16px;margin:16px 0}
+.invitation-list h2{font-size:15px}.invitation-list>div{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px;font-size:12px}.invitation-list span{flex:1}
+.collaboration-notice{padding:10px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#3d3042;font-size:12px;flex-shrink:0}.collaboration-notice span{flex:1}

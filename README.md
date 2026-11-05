@@ -135,3 +135,10 @@ Al aceptar se comprueba la huella del archivo y la unicidad de los fragmentos, s
 El área CodeMirror posee un contenedor de altura acotada y scroll vertical independiente del PDF. El panel desplegado del asistente tiene altura máxima de 238 px y su entrada no supera 34 px; los mensajes tienen scroll interno.
 
 **Verificación requerida en producción:** abrir documento largo, desplazar el código, generar una propuesta con Groq, comprobar colores rojo/verde y controles ✓/✕, aceptar, esperar compilación y refrescar para comprobar que texto y PDF se conservaron. Esta validación de navegador es distinta de las pruebas automáticas del repositorio.
+
+## Compartir proyectos e invitar colaboradores
+Disponible en el código: ventana Compartir, invitaciones por correo con aceptación, permisos propietario/editor/lector, retirada de acceso y biblioteca Compartido contigo. Los guardados incluyen revisión para rechazar sobrescrituras entre sesiones. La actualización de cambios de otros usuarios es manual; aún no hay edición simultánea de pulsaciones.
+
+**Antes de desplegar:** respaldar y aplicar db/003-collaboration.sql; después reconstruir web. Configurar los correos permitidos en Cloudflare Access sin hacerlos administradores. El envío opcional utiliza RESEND_API_KEY, SYNAPSE_MAIL_FROM y SYNAPSE_PUBLIC_URL. Si no están configurados, se informa que la invitación se registró sin enviar correo y se puede copiar el enlace.
+
+Procedimiento, alcance, permisos y comprobaciones: [docs/COLABORACION.md](docs/COLABORACION.md).

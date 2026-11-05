@@ -23,7 +23,7 @@ export function accessConfigured() {
 }
 
 /** Cloudflare Access JWT is a *different* application session from the intranet login. */
-export async function verifySynapseAdmin(request: Request): Promise<VerifiedAdmin | null> {
+export async function verifySynapseUser(request: Request): Promise<VerifiedAdmin | null> {
   // Strictly for localhost development; never accepted in production.
   if (process.env.NODE_ENV !== 'production' && process.env.SYNAPSE_LOCAL_DEV === 'true') {
     const hostname = new URL(request.url).hostname;
@@ -44,7 +44,7 @@ export async function verifySynapseAdmin(request: Request): Promise<VerifiedAdmi
       clockTolerance: 5
     });
     const email = typeof payload.email === 'string' ? payload.email.trim().toLowerCase() : '';
-    if (!email || !allowlist.has(email) || typeof payload.sub !== 'string' || !payload.sub) return null;
+    if (!email || typeof payload.sub !== 'string' || !payload.sub) return null;
     return { email, subject: payload.sub };
   } catch {
     return null;
@@ -55,4 +55,13 @@ export async function requireSynapseAdmin(request: Request): Promise<VerifiedAdm
   const user = await verifySynapseAdmin(request);
   if (!user) throw new Error('SYNAPSE_UNAUTHORIZED');
   return user;
+}
+
+/** Administrator privileges never come from an invitation or a client header. */
+export function isSynapseAdmin(email: string) { return admins().has(email); }
+export async function verifySynapseAdmin(request: Request): Promise<VerifiedAdmin | null> {
+  const user = await verifySynapseUser(request);
+  if (!user) return null;
+  if (process.env.NODE_ENV !== 'production' && user.subject === 'local-development-only') return user;
+  return isSynapseAdmin(user.email) ? user : null;
 }

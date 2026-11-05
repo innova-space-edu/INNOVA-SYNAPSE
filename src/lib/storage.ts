@@ -1,6 +1,9 @@
 import type { SynapseProject, ProjectSnapshot } from './types';
 import { isUsableProject } from './project-list';
 
+// Revisions advance only on explicit loads and our own successful writes.
+const revisions = new Map<string,string>();
+const writes = new Map<string,Promise<void>>();
 async function api<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(path, { ...options, cache: 'no-store', credentials: 'same-origin',
     headers: { 'Content-Type':'application/json', ...options?.headers } });
@@ -12,7 +15,9 @@ async function api<T>(path: string, options?: RequestInit): Promise<T> {
   return await res.json() as T;
 }
 export async function listProjects(): Promise<SynapseProject[]> {
-  return api<SynapseProject[]>('/api/projects');
+  const projects = await api<SynapseProject[]>('/api/projects');
+  for (const p of projects) if (p && typeof p === 'object' && p._revision) revisions.set(p.id,p._revision);
+  return projects;
 }
 export async function loadProject(id: string): Promise<SynapseProject | undefined> {
   try {
@@ -20,6 +25,7 @@ export async function loadProject(id: string): Promise<SynapseProject | undefine
     if (!isUsableProject(result) || result.id !== id) {
       throw new Error('La API devolvió un proyecto incompleto o con identificador distinto. Sus datos no se modificaron.');
     }
+    if (result._revision) revisions.set(id,result._revision);
     return result;
   } catch (error) {
     if (error instanceof Error && error.message.includes('(404)')) return undefined;
@@ -45,8 +51,16 @@ export async function loadLegacyProject(id: string): Promise<SynapseProject> {
 }
 
 export async function saveProject(project: SynapseProject): Promise<void> {
-  await api('/api/projects/' + encodeURIComponent(project.id),
-    { method: 'PUT', body: JSON.stringify(project) });
+  const payload = JSON.stringify(project);
+  const id = project.id;
+  const next = (writes.get(id) || Promise.resolve()).catch(() => undefined).then(async () => {
+    const revision = revisions.get(id);
+    const result = await api<{revision:string}>('/api/projects/' + encodeURIComponent(id),
+      { method: 'PUT', body: payload, headers: revision ? {'If-Match': revision} : {} });
+    revisions.set(id,result.revision);
+  });
+  writes.set(id,next);
+  try { await next; } finally { if (writes.get(id) === next) writes.delete(id); }
 }
 export async function deleteProject(id: string): Promise<void> {
   await api('/api/projects/' + encodeURIComponent(id), { method:'DELETE' });

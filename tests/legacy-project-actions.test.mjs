@@ -9,8 +9,8 @@ const storage = readFileSync(new URL('../src/lib/storage.ts', import.meta.url), 
 test('delete from recovery view is scoped to owner and legacy JSONB strings only', () => {
   assert.match(apiRoute, /legacyOnly/);
   assert.match(apiRoute, /jsonb_typeof\(document\) = 'string'/);
-  assert.match(apiRoute, /owner_email=\$\{admin\.email\}/);
-  assert.match(apiRoute, /status: legacyOnly \? 409 : 404/);
+  assert.match(apiRoute, /owner_email=\$\{user\.email\}/);
+  assert.match(apiRoute, /status:legacyOnly\?409:404/);
   assert.match(storage, /\?legacyOnly=1/);
 });
 

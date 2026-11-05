@@ -101,3 +101,8 @@ jobs:
         env:
           SYNAPSE_JSONB_TEST_URL: postgres://synapse:ci-only-password@127.0.0.1:5432/synapse
         run: node scripts/test-jsonb-repair.mjs verify
+
+      - name: Test collaboration on live Next.js routes and PostgreSQL
+        env:
+          SYNAPSE_JSONB_TEST_URL: postgres://synapse:ci-only-password@127.0.0.1:5432/synapse
+        run: node --test tests/collaboration.integration.mjs
