@@ -2,12 +2,12 @@
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { BookOpenText, ChevronDown, FilePlus2, FileText, FolderOpen, Grid2X2, Import, LayoutList, MoreHorizontal, Plus, Search, Users, X } from 'lucide-react';
+import { BookOpenText, ChevronDown, FilePlus2, FileText, FolderOpen, Grid2X2, Import, LayoutList, MoreHorizontal, Plus, Search, Users, AlertTriangle, X } from 'lucide-react';
 import type { SynapseProject } from '@/lib/types';
 import { deleteProject, listProjects, saveProject } from '@/lib/storage';
 import { newProject } from '@/lib/templates';
 import { importProjectZip } from '@/lib/zip';
-import { inspectProjectList } from '@/lib/project-list';
+import { inspectProjectList, type PendingProject } from '@/lib/project-list';
 
 function reportError(action: string, error: unknown) {
   const detail = error instanceof Error ? error.message : 'Error desconocido';
@@ -19,17 +19,19 @@ export function Dashboard() {
   const uploadRef = useRef<HTMLInputElement>(null);
   const [projects, setProjects] = useState<SynapseProject[]>([]);
   const [filter, setFilter] = useState('');
-  const [section, setSection] = useState<'all'|'mine'|'shared'>('all');
+  const [section, setSection] = useState<'all'|'mine'|'recovery'|'shared'>('all');
   const [grid, setGrid] = useState(false);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
   const [creating, setCreating] = useState(false);
   const [incompleteCount, setIncompleteCount] = useState(0);
+  const [pending, setPending] = useState<PendingProject[]>([]);
   const refresh = async () => {
     try {
       const result = inspectProjectList(await listProjects());
       setProjects(result.projects);
       setIncompleteCount(result.incompleteCount);
+      setPending(result.pending);
       setError('');
     } catch (err) {
       setError(reportError('No fue posible consultar los proyectos del servidor', err));
@@ -44,6 +46,7 @@ export function Dashboard() {
       const result = inspectProjectList(raw);
       setProjects(result.projects);
       setIncompleteCount(result.incompleteCount);
+      setPending(result.pending);
     }).catch(err => {
       if (alive) setError(reportError('No fue posible consultar los proyectos del servidor', err));
     }).finally(() => {
@@ -84,21 +87,22 @@ export function Dashboard() {
     try { const project = await importProjectZip(file); await saveProject(project); router.push('/projects/' + project.id); }
     catch (e) { setError(e instanceof Error ? e.message : 'Error al importar ZIP'); }
   }
-  const shown = projects.filter(p => typeof p?.name === 'string' && p.name.toLowerCase().includes(filter.toLowerCase()) && section !== 'shared');
+  const shown = projects.filter(p => typeof p?.name === 'string' && p.name.toLowerCase().includes(filter.toLowerCase()) && section !== 'shared' && section !== 'recovery');
   return (
     <div className="shell">
       <aside className="home-sidebar">
         <div className="brand"><div className="brand-mark"><Image src="/brand/synapse-symbol.svg" alt="Símbolo de INNOVA SYNAPSE" width={23} height={23} priority /></div><span>INNOVA <b>SYNAPSE</b></span></div>
         <nav className="home-nav" aria-label="Biblioteca">
           <button className={section === 'all' ? 'nav-active' : ''} onClick={() => setSection('all')}><FolderOpen size={17}/> Todos los proyectos</button>
-          <button className={section === 'mine' ? 'nav-active' : ''} onClick={() => setSection('mine')}><BookOpenText size={17}/> Tus proyectos</button>
+          <button className={section === 'mine' ? 'nav-active' : ''} onClick={() => setSection('mine')}><BookOpenText size={17}/> Proyectos creados <span className="nav-count">{projects.length}</span></button>
+          <button className={section === 'recovery' ? 'nav-active' : ''} onClick={() => setSection('recovery')}><AlertTriangle size={17}/> Por recuperar <span className="nav-count">{incompleteCount}</span></button>
           <button className={section === 'shared' ? 'nav-active' : ''} onClick={() => setSection('shared')}><Users size={17}/> Compartido contigo <span className="soon">Próx.</span></button>
         </nav>
         <div className="sidebar-footer"><div className="avatar">I</div><div>Espacio personal <small>Almacenamiento privado en Dell</small></div></div>
       </aside>
       <main className="home-main">
         <header className="home-header">
-          <div><h1>{section === 'shared' ? 'Compartido contigo' : section === 'mine' ? 'Tus proyectos' : 'Todos los proyectos'}</h1><p className="muted tiny">Espacio de trabajo científico</p></div>
+          <div><h1>{section === 'shared' ? 'Compartido contigo' : section === 'mine' ? 'Proyectos creados' : section === 'recovery' ? 'Proyectos por recuperar' : 'Todos los proyectos'}</h1><p className="muted tiny">Espacio de trabajo científico</p></div>
           <div className="header-actions">
             <label className="search"><Search size={18}/><input value={filter} onChange={e => setFilter(e.target.value)} placeholder="Buscar proyectos" aria-label="Buscar proyectos"/></label>
             <div className="view-switch"><button title="Vista lista" aria-label="Vista lista" className={!grid ? 'chosen':''} onClick={() => setGrid(false)}><LayoutList size={17}/></button><button title="Vista cuadrícula" aria-label="Vista cuadrícula" className={grid ? 'chosen':''} onClick={() => setGrid(true)}><Grid2X2 size={17}/></button></div>
@@ -108,10 +112,32 @@ export function Dashboard() {
         </header>
         <input ref={uploadRef} type="file" accept=".zip,application/zip" hidden onChange={e => {void upload(e.target.files?.[0]); e.target.value = '';}}/>
         {error && <div className="error-bar" role="alert">{error}<button onClick={() => setError('')} aria-label="Cerrar error"><X size={16}/></button></div>}
-        {incompleteCount > 0 && <div className="error-bar" role="alert">
-          {incompleteCount} {incompleteCount === 1 ? 'registro de proyecto está incompleto' : 'registros de proyectos están incompletos'} y no {incompleteCount === 1 ? 'se muestra' : 'se muestran'} para evitar errores. Permanecen guardados en PostgreSQL; SYNAPSE no los modificó ni eliminó.
+        {incompleteCount > 0 && section !== 'recovery' && <div className="recovery-notice" role="status">
+          <AlertTriangle size={16}/>
+          <span>{incompleteCount} {incompleteCount === 1 ? 'proyecto anterior requiere' : 'proyectos anteriores requieren'} recuperación de formato. Sus datos no se eliminaron.</span>
+          <button type="button" onClick={() => setSection('recovery')}>Ver pendientes</button>
         </div>}
-        {busy ? <div className="blank">Cargando proyectos…</div> : section === 'shared' ? <div className="empty-state"><Users size={40}/><h2>Colaboración en preparación</h2><p>Los espacios compartidos requerirán autenticación, permisos y sincronización en el servidor.</p></div>
+        {busy ? <div className="blank">Cargando proyectos…</div> : section === 'recovery' ? <section className="recovery-section">
+          <h2>Registros pendientes de recuperación</h2>
+          <p>Esta sección permite consultar los proyectos creados anteriormente que todavía no pueden abrirse. No modifica ni elimina ningún archivo.</p>
+          {pending.length === 0 ? <p>No hay registros pendientes. Los proyectos disponibles aparecen en <button type="button" className="recovery-link" onClick={() => setSection('mine')}>Proyectos creados</button>.</p>
+          : <div className="project-list">
+              {pending.map(item => <div key={item.key} className="project-row">
+                <div className="page-thumb"><FileText size={22}/></div>
+                <div className="project-name recovery-project-name">
+                  <b>{item.name}</b>
+                  <small>{item.fileCount === undefined ? 'Cantidad de archivos desconocida' : item.fileCount + ' archivos'}{item.id ? ' · ' + item.id : ''}</small>
+                </div>
+                <span className="recovery-state">{item.doubleEncoded ? 'JSONB anterior' : 'Revisión requerida'}</span>
+              </div>)}
+            </div>}
+          {pending.length > 0 && <div className="recovery-guidance">
+            Para recuperar los proyectos, un administrador debe ejecutar en el Dell el procedimiento que realiza un respaldo verificado antes de modificar la base de datos.
+            <code>bash scripts/repair-jsonb.sh --check</code>
+            <code>bash scripts/repair-jsonb.sh --apply</code>
+            La recuperación no se ejecuta desde el navegador. Tras completarla, recarga esta página.
+          </div>}
+        </section> : section === 'shared' ? <div className="empty-state"><Users size={40}/><h2>Colaboración en preparación</h2><p>Los espacios compartidos requerirán autenticación, permisos y sincronización en el servidor.</p></div>
         : shown.length === 0 ? <div className="empty-state"><FilePlus2 size={43}/><h2>{filter ? 'No hay coincidencias' : 'Comienza tu próxima investigación'}</h2><p>{filter ? 'Prueba otra búsqueda.' : 'Crea un proyecto LaTeX o importa un ZIP exportado de Prism.'}</p>{!filter && <button className="pill primary" onClick={create} disabled={creating}><Plus size={17}/> {creating ? "Creando…" : "Crear proyecto"}</button>}</div>
         : <div className={grid ? 'project-grid' : 'project-list'}>
             {!grid && <div className="list-heading"><span>Nombre</span><span>Actualizado</span></div>}
