@@ -85,3 +85,19 @@ jobs:
         env:
           SYNAPSE_JSONB_TEST_URL: postgres://synapse:ci-only-password@127.0.0.1:5432/synapse
         run: node scripts/test-jsonb-postgres.mjs
+      - name: Seed historical double-encoded project and snapshot data
+        env:
+          SYNAPSE_JSONB_TEST_URL: postgres://synapse:ci-only-password@127.0.0.1:5432/synapse
+        run: node scripts/test-jsonb-repair.mjs seed
+      - name: Run one-off transaction SQL on real PostgreSQL 17
+        run: |
+          docker run --rm --network host \
+            -v "$PWD/db:/db:ro" \
+            -e PGPASSWORD=ci-only-password \
+            postgres:17-alpine \
+            psql -h 127.0.0.1 -U synapse -d synapse -v ON_ERROR_STOP=1 \
+            -f /db/002-repair-double-encoded-jsonb.sql
+      - name: Verify original project and snapshot content survives repair
+        env:
+          SYNAPSE_JSONB_TEST_URL: postgres://synapse:ci-only-password@127.0.0.1:5432/synapse
+        run: node scripts/test-jsonb-repair.mjs verify
