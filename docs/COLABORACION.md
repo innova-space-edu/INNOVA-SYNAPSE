@@ -38,3 +38,5 @@ Esta versión permite colaboración con guardado protegido y actualización manu
 
 ## Verificación
 El trabajo jsonb-postgres de GitHub Actions ejecuta tests/collaboration.integration.mjs contra rutas Next.js reales y PostgreSQL desechable. Comprueba acceso ajeno, invitaciones, aceptación por correo, lector, editor, revocación, expiración, aislamiento, origen y dos guardados simultáneos. No usa correo ni claves reales.
+
+El despliegue completo con bash scripts/deploy-dell.sh deploy arranca la BD, crea un respaldo y aplica la migración antes de activar web. Para una actualización de solo web puede usarse el procedimiento anterior.

@@ -12,7 +12,7 @@ Editor de documentos LaTeX y plataforma de investigación científica independie
 | PostgreSQL 17 | `synapse-db`, volumen independiente `synapse_pgdata` |
 | LaTeX / PDF | `synapse-compiler` con TeX Live |
 | Entrada web | Cloudflare Tunnel ya existente, como nueva ruta protegida |
-| Autorización | Cloudflare Access JWT verificado por SYNAPSE y correo administrador |
+| Autorización | Cloudflare Access JWT verificado por SYNAPSE y permisos por proyecto |
 | Menú administrativo | Enlace pendiente en la intranet actual |
 
 La instalación no comparte base de datos con el portal ni tiene permisos para modificar SUU o MaleCNS.

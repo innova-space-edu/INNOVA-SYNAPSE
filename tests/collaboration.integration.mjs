@@ -8,7 +8,7 @@ import postgres from 'postgres';
 test('live API enforces invitations, roles, revocation and concurrent-write conflicts', {timeout:180000}, async()=>{
  const database=process.env.SYNAPSE_JSONB_TEST_URL;
  assert.ok(database,'Use a dedicated disposable test database.');
- const sql=postgres(database,{max:2});
+ const sql=postgres(database,{max:1});
  const ids=[crypto.randomUUID(),crypto.randomUUID()];
  let server;
  let logs='';

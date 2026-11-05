@@ -92,6 +92,9 @@ deploy() {
   preflight
   echo "Construyendo únicamente SYNAPSE; el compilador TeX Live requiere espacio libre."
   docker compose -f "$COMPOSE_FILE" build web compiler
+  docker compose -f "$COMPOSE_FILE" up -d --no-build --wait --wait-timeout 90 db
+  bash scripts/backup-synapse.sh
+  docker compose -f "$COMPOSE_FILE" exec -T db psql -U synapse -d synapse -v ON_ERROR_STOP=1 < db/003-collaboration.sql
   docker compose -f "$COMPOSE_FILE" up -d --no-build --wait --wait-timeout 180
   bash scripts/check-synapse.sh
   echo "Servicios locales iniciados. Acceso remoto AÚN requiere configurar Tunnel y Cloudflare Access."

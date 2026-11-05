@@ -18,6 +18,7 @@ function reportError(action: string, error: unknown) {
 export function Dashboard() {
   const router = useRouter();
   const uploadRef = useRef<HTMLInputElement>(null);
+  const [error, setError] = useState('');
   const [sharing,setSharing]=useState<SynapseProject|null>(null);
   const [session,setSession]=useState<{email:string;canCreate:boolean}|null>(null);
   const [invitations,setInvitations]=useState<{id:string;name:string;role:string;owner_email:string}[]>([]);
@@ -48,7 +49,6 @@ export function Dashboard() {
   const [section, setSection] = useState<'all'|'mine'|'recovery'|'shared'>('all');
   const [grid, setGrid] = useState(false);
   const [busy, setBusy] = useState(true);
-  const [error, setError] = useState('');
   const [creating, setCreating] = useState(false);
   const [incompleteCount, setIncompleteCount] = useState(0);
   const [pending, setPending] = useState<PendingProject[]>([]);

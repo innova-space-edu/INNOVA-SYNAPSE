@@ -9,6 +9,7 @@ async function request(path:string,options?:RequestInit){
 }
 export function ShareProject({id,name,onClose}:{id:string;name:string;onClose:()=>void}){
  const dialog=useRef<HTMLDialogElement>(null);
+ const [openedAt]=useState(()=>Date.now());
  const [members,setMembers]=useState<Member[]>([]);
  const [email,setEmail]=useState('');
  const [role,setRole]=useState<'reader'|'editor'>('editor');
@@ -55,7 +56,7 @@ export function ShareProject({id,name,onClose}:{id:string;name:string;onClose:()
   {notice&&<p role="status">{notice}</p>}
   <h3>Personas con acceso</h3><p className="muted tiny">Tú · Propietario. Las invitaciones pendientes vencen a los 7 días.</p>
   <ul className="share-members">{members.map(member=><li key={member.id}>
-   <span>{member.email}<small>{member.status==='accepted'?'Acceso aceptado':new Date(member.expires_at).getTime()<Date.now()?'Invitación vencida':'Invitación pendiente'}</small></span>
+   <span>{member.email}<small>{member.status==='accepted'?'Acceso aceptado':new Date(member.expires_at).getTime()<openedAt?'Invitación vencida':'Invitación pendiente'}</small></span>
    <select aria-label={'Permiso de '+member.email} value={member.role} disabled={busy}
     onChange={e=>void invite(member.email,e.target.value as 'reader'|'editor')}>
     <option value="editor">Editor</option><option value="reader">Lector</option>
