@@ -400,7 +400,7 @@ export function Workspace() {
             </button>
           </div>}
           <div className="editor-container">
-            {active?.encoding === 'utf8' ? <LatexCodeEditor value={active.content}
+            {active?.encoding === 'utf8' ? <LatexCodeEditor key={activeFile} value={active.content}
               editable={!applyingAI && !compiling && !review}
               reviewEdits={review?.filePath === activeFile ? review.edits : []}
               onChange={updateContent}/>
