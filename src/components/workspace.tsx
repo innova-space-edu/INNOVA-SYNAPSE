@@ -359,7 +359,7 @@ export function Workspace() {
         <button className="toolbar-button" onClick={()=>void exportProjectZip(project)}><Download size={16}/> Exportar ZIP</button>
         <button className="toolbar-button" onClick={()=>void openHistory()}><Clock3 size={16}/> Historial</button>
         <button className="toolbar-button" onClick={()=>setShowLog(!showLog)}><Terminal size={16}/> Registro</button>
-        <button className="compile-button" onClick={()=>void compile()} disabled={compiling}><Play size={15} fill="currentColor"/>{compiling?'Compilando…':'Compilar PDF'}</button>
+        <button className="compile-button" onClick={()=>void compile()} disabled={compiling || applyingAI || Boolean(review)}><Play size={15} fill="currentColor"/>{compiling?'Compilando…':'Compilar PDF'}</button>
       </div>
     </header>
     <div className="work-body">
@@ -386,11 +386,30 @@ export function Workspace() {
       <main className={'work-panels '+(previewFull?'pdf-full':'')}>
         {!previewFull && <div className="code-panel">
           <div className="code-tab-bar"><div className="code-tab"><FileCode2 size={15}/><span>{activeFile}</span>{activeFile===project.mainFile&&<span className="main-dot" title="Archivo principal"/>}</div><div className="code-tools"><button onClick={()=>setActiveFile(project.mainFile)} title="Ir al principal"><ChevronsLeft size={15}/></button></div></div>
+          {review && review.filePath === activeFile && <div className="inline-ai-toolbar" role="region"
+            aria-label="Revisar propuesta de IA en el código LaTeX">
+            <span className="inline-ai-toolbar-label">{review.edits.length} cambio(s) · <b>Rojo</b> original / <strong>Verde</strong> propuesto</span>
+            <button type="button" className="inline-ai-reject" onClick={rejectAIProposal}
+              disabled={applyingAI || compiling} title="Rechazar cambios" aria-label="Rechazar cambios propuestos">
+              <X size={16}/>
+            </button>
+            <button type="button" className="inline-ai-accept" onClick={()=>void applyAIProposal()}
+              disabled={applyingAI || compiling} title="Aceptar, guardar y compilar automáticamente"
+              aria-label="Aceptar cambios, guardar y compilar PDF">
+              <Check size={16}/><span>{applyingAI || compiling ? 'Procesando…' : 'Aceptar'}</span>
+            </button>
+          </div>}
           <div className="editor-container">
-            {active?.encoding === 'utf8' ? <LatexCodeEditor value={active.content} editable={!applyingAI} onChange={updateContent}/>
+            {active?.encoding === 'utf8' ? <LatexCodeEditor value={active.content}
+              editable={!applyingAI && !compiling && !review}
+              reviewEdits={review?.filePath === activeFile ? review.edits : []}
+              onChange={updateContent}/>
               : <div className="binary-preview"><FileText size={35}/><h3>{activeFile}</h3><p>Archivo de recurso binario. Se incluirá en la compilación y exportación ZIP.</p></div>}
           </div>
-          <AIChat source={active?.encoding==='utf8'?active.content:''} activeFile={activeFile} lastLog={project.lastLog} initialMessages={project.chats || []} onMessagesChange={messages=>change(p=>({...p,chats:messages}))} onApply={updateContent} onApplyEdits={applyAIProposal}/>
+          <AIChat source={active?.encoding==='utf8'?active.content:''} activeFile={activeFile}
+            lastLog={project.lastLog} initialMessages={project.chats || []}
+            onMessagesChange={messages=>change(p=>({...p,chats:messages}))}
+            onReviewProposal={reviewAIProposal} reviewingIndex={review?.messageIndex ?? null}/>
         </div>}
         {!previewFull && <div className="drag-handle" onMouseDown={e=>startResize('preview',e)} title="Redimensionar PDF"/>}
         <section className="pdf-panel" style={previewFull?{flex:1}:{width:pdfWidth+'%'}}>
