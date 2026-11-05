@@ -100,3 +100,24 @@ bash -n scripts/deploy-dell.sh scripts/check-synapse.sh scripts/smoke-compiler.s
 ```
 
 Se requieren además pruebas funcionales reales de Docker, compilación, autenticación y restauración antes de considerar completada la publicación.
+
+## Optimización del editor y agentes de escritura (noviembre de 2026)
+
+- **Editor LaTeX:** CodeMirror y su gramática TeX se cargan como componente cliente diferido para reducir el JavaScript inicial del espacio de trabajo. El área de código tiene scroll vertical y horizontal independiente del visor PDF.
+- **Asistente compacto:** cuadro de entrada de altura fija (36 px) y conversación acotada con scroll propio; historial en PostgreSQL.
+- **Especialidades de IA:** Editar (cambios mínimos), LaTeX (sintaxis y diagnóstico con el registro de compilación), Revisar (coherencia científica) y Referencias (claves BibTeX y citas). Una petición utiliza **solo un proveedor/modelo**.
+- **Automatización local rápida:** instrucciones inequívocas como «cambia el año de 2027 a 2026» generan propuestas de diferencias sin llamar al modelo externo. Cada propuesta exige aceptación del usuario.
+- **Velocidad y consumo:** máximo cuatro mensajes recientes y hasta 12 000 caracteres del archivo (8 000 para revisión), en vez de enviar todo el documento. Espera máxima del proveedor: 45 segundos.
+- **Errores del proveedor:** si devuelve HTML, problemas de autenticación, cuota o una respuesta malformada, se informa en el chat sin mostrar HTML, API keys ni datos internos.
+
+**Limitaciones:** no hay un sistema multiagente autónomo que edite varios archivos, valide DOI contra fuentes externas ni compile automáticamente cada cambio. La disponibilidad de proveedores requiere comprobación individual desde Dell.
+
+### Diagnóstico de IA
+
+```bash
+cd /srv/intranet/synapse
+docker compose -f compose.intranet.yaml logs --tail=80 --no-color web | grep SYNAPSE_AI
+bash scripts/audit-dell.sh
+```
+
+Si un modelo sigue devolviendo 502, revisar API key, identificador de modelo, endpoint y cuota. No compartir credenciales ni tokens.
