@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { verifySynapseAdmin } from '@/lib/server/access';
 import { db } from '@/lib/server/database';
+import { logProjectDatabaseFailure } from '@/lib/server/db-diagnostics';
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
 export async function GET(req:Request) {
@@ -9,5 +10,5 @@ export async function GET(req:Request) {
  try {
   const rows=await db()`SELECT document FROM synapse_projects WHERE owner_email=${admin.email} ORDER BY updated_at DESC LIMIT 500`;
   return NextResponse.json(rows.map(r=>r.document),{headers:{'Cache-Control':'no-store'}});
- } catch { return NextResponse.json({error:'No se pudo consultar la base de datos SYNAPSE'},{status:503}); }
+ } catch (error) { logProjectDatabaseFailure('list', error); return NextResponse.json({error:'No se pudo consultar la base de datos SYNAPSE'},{status:503}); }
 }

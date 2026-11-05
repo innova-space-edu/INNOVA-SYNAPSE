@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { verifySynapseAdmin } from '@/lib/server/access';
 import { db } from '@/lib/server/database';
+import { logProjectDatabaseFailure } from '@/lib/server/db-diagnostics';
 import { parseProject, validUuid } from '@/lib/server/validate';
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
@@ -14,7 +15,7 @@ export async function GET(req:Request,context:Context){
   const rows=await db()`SELECT document FROM synapse_projects WHERE id=${id}::uuid AND owner_email=${admin.email} LIMIT 1`;
   if(!rows.length) return NextResponse.json({error:'Proyecto no encontrado (404)'},{status:404});
   return NextResponse.json(rows[0].document,{headers:{'Cache-Control':'no-store'}});
- } catch { return NextResponse.json({error:'Error al leer proyecto'},{status:503}); }
+ } catch (error) { logProjectDatabaseFailure('read', error); return NextResponse.json({error:'Error al leer proyecto'},{status:503}); }
 }
 export async function PUT(req:Request,context:Context){
  const admin=await verifySynapseAdmin(req);
@@ -38,7 +39,7 @@ export async function PUT(req:Request,context:Context){
   `;
   if(!rows.length) return NextResponse.json({error:'Proyecto no autorizado'},{status:403});
   return NextResponse.json({ok:true});
- } catch { return NextResponse.json({error:'No se pudo guardar en el servidor. Exporta una copia ZIP.'},{status:503}); }
+ } catch (error) { logProjectDatabaseFailure('save', error); return NextResponse.json({error:'No se pudo guardar en el servidor. Exporta una copia ZIP.'},{status:503}); }
 }
 export async function DELETE(req:Request,context:Context){
  const admin=await verifySynapseAdmin(req);
@@ -49,5 +50,5 @@ export async function DELETE(req:Request,context:Context){
   const result=await db()`DELETE FROM synapse_projects WHERE id=${id}::uuid AND owner_email=${admin.email} RETURNING id`;
   if(!result.length) return NextResponse.json({error:'Proyecto no encontrado (404)'},{status:404});
   return NextResponse.json({ok:true});
- } catch {return NextResponse.json({error:'No se pudo eliminar el proyecto'},{status:503});}
+ } catch (error) { logProjectDatabaseFailure('delete', error); return NextResponse.json({error:'No se pudo eliminar el proyecto'},{status:503}); }
 }
