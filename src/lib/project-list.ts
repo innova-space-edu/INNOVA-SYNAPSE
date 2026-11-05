@@ -1,5 +1,35 @@
 import type { SynapseProject } from './types';
 
+export type PendingProject = {
+  key: string;
+  id?: string;
+  name: string;
+  fileCount?: number;
+  updatedAt?: string;
+  doubleEncoded: boolean;
+};
+
+/** Read-only preview of legacy JSONB strings. Never repair by overwriting in the browser. */
+function pendingProject(value: unknown, index: number): PendingProject {
+  let parsed: unknown = value;
+  if (typeof value === 'string' && value.length <= 34_000_000) {
+    try { parsed = JSON.parse(value) as unknown; } catch { /* Leave legacy data untouched. */ }
+  }
+  const obj = parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+    ? parsed as Record<string, unknown> : {};
+  return {
+    key: String(index),
+    id: typeof obj.id === 'string' && /^[0-9a-f-]{36}$/i.test(obj.id) ? obj.id : undefined,
+    name: typeof obj.name === 'string' && obj.name.trim()
+      ? obj.name.slice(0, 200) : 'Registro sin nombre visible',
+    fileCount: Array.isArray(obj.files) ? obj.files.length : undefined,
+    updatedAt: typeof obj.updatedAt === 'string' && !Number.isNaN(Date.parse(obj.updatedAt))
+      ? obj.updatedAt : undefined,
+    doubleEncoded: typeof value === 'string' && isUsableProject(parsed)
+  };
+}
+
+
 /**
  * Database responses are untrusted at runtime even when fetch is typed.
  * Never discard or rewrite incomplete records: only omit them from the
@@ -8,6 +38,7 @@ import type { SynapseProject } from './types';
 export function inspectProjectList(value: unknown): {
   projects: SynapseProject[];
   incompleteCount: number;
+  pending: PendingProject[];
 } {
   if (!Array.isArray(value)) {
     throw new Error('La API devolvió un formato de biblioteca inesperado');
@@ -15,16 +46,18 @@ export function inspectProjectList(value: unknown): {
 
   const projects: SynapseProject[] = [];
   let incompleteCount = 0;
+  const pending: PendingProject[] = [];
 
-  for (const item of value) {
+  for (const [index, item] of value.entries()) {
     if (!isUsableProject(item)) {
       incompleteCount += 1;
+      pending.push(pendingProject(item, index));
       continue;
     }
     projects.push(item);
   }
 
-  return { projects, incompleteCount };
+  return { projects, incompleteCount, pending };
 }
 
 export function isUsableProject(item: unknown): item is SynapseProject {

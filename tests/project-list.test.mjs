@@ -67,3 +67,26 @@ test('bloquea un registro que declara archivos no utilizables por el editor', ()
   assert.equal(isUsableProject({ ...valid, files: [{ path: 'main.tex', content: null, encoding: 'utf8' }] }), false);
   assert.equal(isUsableProject({ ...valid, mainFile: 'other.tex' }), false);
 });
+
+test('muestra resumen de proyectos con JSONB de formato antiguo sin repararlos', () => {
+  const legacy = JSON.stringify(valid);
+  const results = inspectProjectList([legacy, valid]);
+  assert.equal(results.projects.length, 1);
+  assert.equal(results.incompleteCount, 1);
+  assert.equal(results.pending.length, 1);
+  assert.equal(results.pending[0].name, valid.name);
+  assert.equal(results.pending[0].id, valid.id);
+  assert.equal(results.pending[0].fileCount, 1);
+  assert.equal(results.pending[0].doubleEncoded, true);
+  assert.equal(results.projects[0], valid);
+  assert.equal(legacy, JSON.stringify(valid));
+});
+
+test('los registros corruptos solo muestran resumen genérico y no cierran la biblioteca', () => {
+  const results = inspectProjectList(['{no-es-json}', null, 42, valid]);
+  assert.equal(results.projects.length, 1);
+  assert.equal(results.incompleteCount, 3);
+  assert.equal(results.pending[0].name, 'Registro sin nombre visible');
+  assert.equal(results.pending[0].doubleEncoded, false);
+  assert.equal(results.pending[1].id, undefined);
+});

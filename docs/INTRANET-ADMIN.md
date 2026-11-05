@@ -4,12 +4,12 @@
 **Aplicación separada** de la intranet, accesible únicamente desde un enlace dentro de `/dashboard/empresa` del portal principal (menú *INNOVA SYNAPSE*). La aplicación utiliza otro hostname, otra cookie/sesión de Cloudflare Access y otra base de datos. No reemplaza ni comparte el inicio de sesión Better Auth del portal.
 
 - Intranet existente: `https://intranet.innova-space-edu.cl`, contenedor `intranet-portal`, PostgreSQL `intranet-db`.
-- SYNAPSE previsto: `https://synapse.innova-space-edu.cl`, contenedor `synapse-web`, DB `synapse-db` (service `db`).
+- SYNAPSE en servicio según capturas del usuario (5 de noviembre de 2026): `https://synapse.innova-space-edu.cl`, contenedor `synapse-web`, DB dedicada `synapse-db`.
 - Docker: misma red externa `portal_default` solamente para `synapse-web`; DB y compilador en red interna del stack SYNAPSE.
 - Cloudflare Tunnel existente puede resolver `http://synapse-web:3000` sin exponer el puerto; si usa `intranet-web` como reverse proxy, configurar ruta upstream sin alterar reglas de intranet.
 - Firewall: `127.0.0.1:3410` solo pruebas en el servidor. **Nunca abrir 3410, 5432 ni 8000 a Internet.**
 - Acceso por Zero Trust: crear una **aplicación Self-hosted independiente** para SYNAPSE, con política Allow de una sola dirección de correo administradora, autenticación One-time PIN (o IdP actual), sesión corta (15–30 min), preferentemente verificación multifactor.
-- Servidor SYNAPSE verifica criptográficamente el JWT `Cf-Access-Jwt-Assertion`, emisor, audiencia y correo permitido. Falta configurar `CF_ACCESS_TEAM_DOMAIN`, `CF_ACCESS_AUD` y `SYNAPSE_ADMIN_EMAILS`; sin ellos, SYNAPSE deniega acceso. No existe una puerta trasera por correo de cabecera.
+- Servidor SYNAPSE verifica criptográficamente el JWT `Cf-Access-Jwt-Assertion`, emisor, audiencia y correo permitido. Según la sesión mostrada por el usuario, Cloudflare Access y los valores del entorno están funcionando. No publicar ni copiar esos valores fuera de Dell. No existe una puerta trasera por correo de cabecera.
 - **Importante:** si ya existe una cookie global de Cloudflare, puede no solicitar una contraseña otra vez; aun así emite un token de aplicación diferente y aplica su política propia. Para independencia adicional, usar otro IdP, sesión más corta o forzar reautenticación según las opciones del panel Access.
 
 ## Entrada desde Innova Empresa

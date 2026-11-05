@@ -25,3 +25,21 @@
 .conversation-snippet{border:1px solid #37373e;border-radius:9px;padding:10px;display:flex;flex-direction:column;gap:6px;background:#1e1e23}
 .conversation-snippet b{font-size:10px;color:#c4b6ef}
 .conversation-snippet span{font-size:11px;line-height:1.5;color:#d0ced8;overflow-wrap:anywhere}
+
+/* Created projects and read-only legacy recovery view */
+.home-nav .nav-count{margin-left:auto;font-size:11px;border:1px solid #4f4a5c;background:#27252f;border-radius:12px;min-width:23px;padding:2px 6px;text-align:center}
+.recovery-notice{background:#302a25;border:1px solid #675947;color:#eadcc5;padding:10px 12px;display:flex;align-items:center;gap:10px;font-size:12px;border-radius:8px;margin:10px 0}
+.recovery-notice span{flex:1}
+.recovery-notice button,.recovery-link{border:1px solid #84715b;border-radius:7px;background:transparent;color:#e7d6bd;font-size:12px;padding:7px 10px;white-space:nowrap}
+.recovery-section{padding:22px 4px;max-width:100%;color:#cccbd4}
+.recovery-section h2{font-size:17px;color:#eee;margin:0 0 9px}
+.recovery-section>p{font-size:13px;line-height:1.65;max-width:690px;color:#b4b3be}
+.recovery-project-name{flex:1}
+.recovery-project-name small{white-space:normal;overflow-wrap:anywhere}
+.recovery-state{font-size:11px;color:#d1c6ae;border:1px solid #595044;background:#363028;padding:6px 8px;border-radius:8px;white-space:nowrap}
+.recovery-guidance{font-size:12px;line-height:1.7;border-top:1px solid #44414a;margin-top:18px;padding-top:15px;color:#ccc8d2;display:flex;flex-direction:column;align-items:flex-start;gap:7px;max-width:850px}
+.recovery-guidance code{font-size:12px;font-family:ui-monospace,monospace;color:#d9c5ff;background:#17151e;padding:7px 10px;border-radius:6px;max-width:100%;overflow-wrap:anywhere}
+.work-projects-link{display:flex;align-items:center;gap:7px;padding:7px 9px;border-radius:8px;border:1px solid #38343e;background:#211e29;color:#e8e2fa;font-size:12px;white-space:nowrap}
+.work-projects-link:hover{background:#342c45}
+@media(max-width:800px){.home-nav .nav-count{display:none}.work-projects-link span{display:none}.work-projects-link{padding:7px}}
+@media(max-width:560px){.recovery-notice{flex-wrap:wrap}.recovery-state{font-size:10px;white-space:normal}}

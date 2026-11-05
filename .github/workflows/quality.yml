@@ -28,7 +28,7 @@ jobs:
           LATEX_COMPILER_TOKEN: dummy-ci-compile-token
         run: docker compose -f compose.intranet.yaml config --quiet
       - name: Validate Dell installation shell scripts
-        run: bash -n scripts/deploy-dell.sh scripts/check-synapse.sh scripts/smoke-compiler.sh scripts/backup-synapse.sh scripts/repair-jsonb.sh
+        run: bash -n scripts/deploy-dell.sh scripts/check-synapse.sh scripts/smoke-compiler.sh scripts/backup-synapse.sh scripts/repair-jsonb.sh scripts/audit-dell.sh
 
   selfhost-web-smoke:
     runs-on: ubuntu-latest
