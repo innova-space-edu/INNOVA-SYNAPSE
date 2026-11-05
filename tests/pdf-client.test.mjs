@@ -29,7 +29,7 @@ test('fails closed for invalid PDF header, truncation and base64', () => {
 
 test('workspace renders PDF using a revocable Blob, not a data URI', () => {
   const workspace = readFileSync(new URL('../src/components/workspace.tsx', import.meta.url), 'utf8');
-  assert.match(workspace, /URL\.createObjectURL\(blob\)/);
+  assert.match(workspace, /URL\.createObjectURL\(pdfBlob\)/);
   assert.match(workspace, /URL\.revokeObjectURL\(objectUrl\)/);
   assert.doesNotMatch(workspace, /data:application\/pdf;base64,/);
   assert.match(workspace, /pdfBlobFromBase64\(data\.pdf\)/);
