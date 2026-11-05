@@ -7,6 +7,8 @@ import { type Range } from '@codemirror/state';
 import { Decoration, EditorView, WidgetType } from '@codemirror/view';
 import type { AITextEdit } from '@/lib/ai-edits';
 
+const NO_EDITS: AITextEdit[] = [];
+
 type Props = {
   value: string;
   onChange: (value: string) => void;
@@ -52,28 +54,33 @@ function proposedDecorations(value: string, edits: AITextEdit[]): Range<Decorati
   return ranges;
 }
 
-export function LatexCodeEditor({ value, onChange, editable, reviewEdits = [] }: Props) {
+export function LatexCodeEditor({ value, onChange, editable, reviewEdits = NO_EDITS }: Props) {
   const editorView = useRef<EditorView | null>(null);
   const syntax = useMemo(() => StreamLanguage.define(stex), []);
+  // Stable decorations for ordinary typing: only reconfigure CodeMirror
+  // when there is an active review or its reviewed source actually changes.
+  const reviewed = reviewEdits.length ? reviewEdits : NO_EDITS;
+  const reviewSource = reviewed.length ? value : '';
   const visualDiff = useMemo(() => EditorView.decorations.of(
-    Decoration.set(proposedDecorations(value, reviewEdits), true)
-  ), [value, reviewEdits]);
+    Decoration.set(proposedDecorations(reviewSource, reviewed), true)
+  ), [reviewSource, reviewed]);
+  const extensions = useMemo(() => [syntax, visualDiff], [syntax, visualDiff]);
 
   useEffect(() => {
-    if (!reviewEdits.length || !editorView.current) return;
-    const first = value.indexOf(reviewEdits[0].find);
+    if (!reviewed.length || !editorView.current) return;
+    const first = reviewSource.indexOf(reviewed[0].find);
     if (first < 0) return;
     editorView.current.dispatch({
       effects: EditorView.scrollIntoView(first, { y: 'center' })
     });
-  }, [reviewEdits, value]);
+  }, [reviewed, reviewSource]);
 
   return <CodeMirror
     value={value}
     height="100%"
     theme="dark"
     editable={editable}
-    extensions={[syntax, visualDiff]}
+    extensions={extensions}
     onCreateEditor={(view) => { editorView.current = view; }}
     onChange={onChange}
     basicSetup={{
