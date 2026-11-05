@@ -7,6 +7,7 @@ import type { SynapseProject } from '@/lib/types';
 import { deleteProject, listProjects, saveProject } from '@/lib/storage';
 import { newProject } from '@/lib/templates';
 import { importProjectZip } from '@/lib/zip';
+import { inspectProjectList } from '@/lib/project-list';
 
 function reportError(action: string, error: unknown) {
   const detail = error instanceof Error ? error.message : 'Error desconocido';
@@ -23,8 +24,33 @@ export function Dashboard() {
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
   const [creating, setCreating] = useState(false);
-  const refresh = async () => { try { setProjects(await listProjects()); setError(''); } catch (err) { setError(reportError('No fue posible consultar los proyectos del servidor', err)); } finally { setBusy(false); } };
-  useEffect(() => { let alive = true; void listProjects().then(p => { if (alive) setProjects(p); }).catch(err => { if (alive) setError(reportError('No fue posible consultar los proyectos del servidor', err)); }).finally(() => { if (alive) setBusy(false); }); return () => { alive = false; }; }, []);
+  const [incompleteCount, setIncompleteCount] = useState(0);
+  const refresh = async () => {
+    try {
+      const result = inspectProjectList(await listProjects());
+      setProjects(result.projects);
+      setIncompleteCount(result.incompleteCount);
+      setError('');
+    } catch (err) {
+      setError(reportError('No fue posible consultar los proyectos del servidor', err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  useEffect(() => {
+    let alive = true;
+    void listProjects().then(raw => {
+      if (!alive) return;
+      const result = inspectProjectList(raw);
+      setProjects(result.projects);
+      setIncompleteCount(result.incompleteCount);
+    }).catch(err => {
+      if (alive) setError(reportError('No fue posible consultar los proyectos del servidor', err));
+    }).finally(() => {
+      if (alive) setBusy(false);
+    });
+    return () => { alive = false; };
+  }, []);
   async function create() {
     if (creating) return;
     setCreating(true); setError('');
@@ -58,7 +84,7 @@ export function Dashboard() {
     try { const project = await importProjectZip(file); await saveProject(project); router.push('/projects/' + project.id); }
     catch (e) { setError(e instanceof Error ? e.message : 'Error al importar ZIP'); }
   }
-  const shown = projects.filter(p => p.name.toLowerCase().includes(filter.toLowerCase()) && section !== 'shared');
+  const shown = projects.filter(p => typeof p?.name === 'string' && p.name.toLowerCase().includes(filter.toLowerCase()) && section !== 'shared');
   return (
     <div className="shell">
       <aside className="home-sidebar">
@@ -81,7 +107,10 @@ export function Dashboard() {
           </div>
         </header>
         <input ref={uploadRef} type="file" accept=".zip,application/zip" hidden onChange={e => {void upload(e.target.files?.[0]); e.target.value = '';}}/>
-        {error && <div className="error-bar">{error}<button onClick={() => setError('')} aria-label="Cerrar error"><X size={16}/></button></div>}
+        {error && <div className="error-bar" role="alert">{error}<button onClick={() => setError('')} aria-label="Cerrar error"><X size={16}/></button></div>}
+        {incompleteCount > 0 && <div className="error-bar" role="alert">
+          {incompleteCount} {incompleteCount === 1 ? 'registro de proyecto está incompleto' : 'registros de proyectos están incompletos'} y no {incompleteCount === 1 ? 'se muestra' : 'se muestran'} para evitar errores. Permanecen guardados en PostgreSQL; SYNAPSE no los modificó ni eliminó.
+        </div>}
         {busy ? <div className="blank">Cargando proyectos…</div> : section === 'shared' ? <div className="empty-state"><Users size={40}/><h2>Colaboración en preparación</h2><p>Los espacios compartidos requerirán autenticación, permisos y sincronización en el servidor.</p></div>
         : shown.length === 0 ? <div className="empty-state"><FilePlus2 size={43}/><h2>{filter ? 'No hay coincidencias' : 'Comienza tu próxima investigación'}</h2><p>{filter ? 'Prueba otra búsqueda.' : 'Crea un proyecto LaTeX o importa un ZIP exportado de Prism.'}</p>{!filter && <button className="pill primary" onClick={create} disabled={creating}><Plus size={17}/> {creating ? "Creando…" : "Crear proyecto"}</button>}</div>
         : <div className={grid ? 'project-grid' : 'project-list'}>
