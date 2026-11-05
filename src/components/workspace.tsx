@@ -309,7 +309,7 @@ export function Workspace() {
             {active?.encoding === 'utf8' ? <LatexCodeEditor value={active.content} editable={!applyingAI} onChange={updateContent}/>
               : <div className="binary-preview"><FileText size={35}/><h3>{activeFile}</h3><p>Archivo de recurso binario. Se incluirá en la compilación y exportación ZIP.</p></div>}
           </div>
-          <AIChat source={active?.encoding==='utf8'?active.content:''} activeFile={activeFile} initialMessages={project.chats || []} onMessagesChange={messages=>change(p=>({...p,chats:messages}))} onApply={updateContent} onApplyEdits={applyAIProposal}/>
+          <AIChat source={active?.encoding==='utf8'?active.content:''} activeFile={activeFile} lastLog={project.lastLog} initialMessages={project.chats || []} onMessagesChange={messages=>change(p=>({...p,chats:messages}))} onApply={updateContent} onApplyEdits={applyAIProposal}/>
         </div>}
         {!previewFull && <div className="drag-handle" onMouseDown={e=>startResize('preview',e)} title="Redimensionar PDF"/>}
         <section className="pdf-panel" style={previewFull?{flex:1}:{width:pdfWidth+'%'}}>
