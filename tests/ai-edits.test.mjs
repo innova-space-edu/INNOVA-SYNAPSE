@@ -39,13 +39,15 @@ test('a stale file has a different fingerprint and must not receive old proposal
   assert.equal(sourceFingerprint('Texto original'),sourceFingerprint('Texto original'));
 });
 
-test('workspace saves accepted edits through protected server and clears outdated PDF',()=>{
+test('workspace previews and applies AI edits, stores snapshot and auto-compiles',()=>{
   const workspace=readFileSync(new URL('../src/components/workspace.tsx',import.meta.url),'utf8');
-  assert.match(workspace,/sourceFingerprint\(file\.content\) !== expectedFingerprint/);
-  assert.match(workspace,/applyAITextEdits\(file\.content, edits\)/);
+  assert.match(workspace,/sourceFingerprint\(file\.content\) !== review\.fingerprint/);
+  assert.match(workspace,/applyAITextEdits\(file\.content, review\.edits\)/);
   assert.match(workspace,/await saveQueue\.current/);
+  assert.match(workspace,/await saveSnapshot\(project\)/);
   assert.match(workspace,/lastPdf: undefined/);
-  assert.match(workspace,/onApplyEdits=\{applyAIProposal\}/);
+  assert.match(workspace,/onReviewProposal=\{reviewAIProposal\}/);
+  assert.match(workspace,/await compileProject\(revisedProject, false\)/);
 });
 
 test('AI endpoint requests exact edit instructions, not uncontrolled execution',()=>{
