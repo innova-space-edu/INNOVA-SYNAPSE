@@ -11,5 +11,8 @@ PostgreSQL 17 independiente (`synapse_projects`, `synapse_snapshots`, `synapse_p
 ## Aislamiento
 Compose independiente: `synapse-web` comparte únicamente la red `portal_default` para que el túnel reverse-proxy pueda alcanzarlo; `db` y `compiler` solo comparten la red `internal` de Synapse. Web escucha en localhost:3410 del anfitrión para pruebas, sin puerto público.
 
+## Estado de instalación observado (5 de noviembre de 2026)
+El usuario mostró SYNAPSE operativo tras Cloudflare Access, con contenedores web, PostgreSQL y compilador iniciados en Dell. También reportó compilación de PDF de prueba desde CLI. Esto **no confirma** aún todas las funciones integradas ni proveedores externos. Falta migrar tres proyectos antiguos que se almacenaron como strings JSONB y verificar guardado/compilación en navegador.
+
 ## Alcance no completado
-No hay enlace en la intranet, reglas Cloudflare Access, secretos reales, despliegue Dell o smoke test; tampoco colaboración Yjs, RAG académico ni agentes. Las rutas solo aceptan sesión de administrador verificable. <Mantenimiento futuro>: copia externa cifrada, cuotas IA, aislamiento reforzado de compilación y pruebas restore.
+No consta enlace desde la intranet, respaldo/restore probado, pruebas del chat por API ni colaboración Yjs, RAG académico o agentes. Las rutas solo aceptan sesión de administrador verificable. <Mantenimiento futuro>: copia externa cifrada, cuotas IA, aislamiento reforzado de compilación y pruebas restore.
