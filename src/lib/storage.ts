@@ -26,6 +26,24 @@ export async function loadProject(id: string): Promise<SynapseProject | undefine
     throw error;
   }
 }
+/** Decode a legacy JSONB string for read-only export or explicit recovery as a new project. */
+export async function loadLegacyProject(id: string): Promise<SynapseProject> {
+  const raw = await api<unknown>('/api/projects/' + encodeURIComponent(id));
+  if (typeof raw !== 'string') {
+    throw new Error('El registro ya fue recuperado o no corresponde a un proyecto antiguo. Actualiza la biblioteca.');
+  }
+  let decoded: unknown;
+  try {
+    decoded = JSON.parse(raw) as unknown;
+  } catch {
+    throw new Error('El proyecto antiguo contiene JSON no recuperable automáticamente.');
+  }
+  if (!isUsableProject(decoded) || decoded.id !== id) {
+    throw new Error('El registro no cumple los requisitos para recuperarlo de forma segura. Conserva sus datos y revisa el respaldo.');
+  }
+  return decoded;
+}
+
 export async function saveProject(project: SynapseProject): Promise<void> {
   await api('/api/projects/' + encodeURIComponent(project.id),
     { method: 'PUT', body: JSON.stringify(project) });
