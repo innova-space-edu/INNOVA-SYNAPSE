@@ -263,7 +263,7 @@ export function Workspace() {
         {!previewFull && <div className="drag-handle" onMouseDown={e=>startResize('preview',e)} title="Redimensionar PDF"/>}
         <section className="pdf-panel" style={previewFull?{flex:1}:{width:pdfWidth+'%'}}>
           <div className="pdf-toolbar">
-            <div className="pdf-left"><FileText size={17}/><b>Vista PDF</b><span className="muted tiny">{project.lastPdf?'Compilación disponible':'Sin compilar'}</span></div>
+            <div className="pdf-left"><FileText size={17}/><b>Vista PDF</b><span className="muted tiny">{pdfLink?'PDF disponible':project.lastPdf?'Validando PDF…':'Sin compilar'}</span></div>
             <div className="pdf-controls">
               <button className="icon-button" title="Reducir" onClick={()=>setZoom(z=>Math.max(60,z-10))}><ZoomOut size={17}/></button>
               <span className="zoom-label">{zoom}%</span>
