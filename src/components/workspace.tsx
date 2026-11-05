@@ -25,6 +25,8 @@ const LatexCodeEditor = dynamic(
   () => import('./latex-code-editor').then(module => module.LatexCodeEditor),
   { ssr: false, loading: () => <div className="latex-editor-loading">Preparando editor LaTeX…</div> }
 );
+// Save only after a pause in edits; each new change restarts this delay.
+const AUTOSAVE_IDLE_MS = 2000;
 const textExt = /\.(tex|bib|sty|cls|bst|txt|keep)$/i;
 const allowedExt = /\.(tex|bib|sty|cls|bst|png|jpe?g|pdf|eps|txt|keep)$/i;
 function toBase64(buffer: ArrayBuffer): string {
@@ -95,7 +97,7 @@ export function Workspace() {
         setStatus('error');
         setWorkspaceError(error instanceof Error?error.message:'No se pudo guardar.');
       });
-    }, 650);
+    }, AUTOSAVE_IDLE_MS);
     return () => {
       if (autosaveTimer.current !== null) window.clearTimeout(autosaveTimer.current);
     };
@@ -137,7 +139,7 @@ export function Workspace() {
     const change = useCallback((update: (old:SynapseProject)=>SynapseProject) => {
     if(!canEdit || compiling || applyingAI || status==='error')return;
     editGeneration.current+=1;
-    setProject(old => old ? update(old) : old);
+    setProject(old => old ? {...update(old), updatedAt:new Date().toISOString()} : old);
     setStatus('editado');
   }, [canEdit,status,compiling,applyingAI]);
   function updateContent(text:string) {
@@ -382,7 +384,7 @@ export function Workspace() {
         <button className="icon-button" onClick={()=>setShowTree(!showTree)} title={showTree?'Ocultar archivos':'Mostrar archivos'}>{showTree?<PanelLeftClose size={17}/>:<PanelLeftOpen size={17}/>}</button>
       </div>
       <div className="work-top-right">
-        <span className={'save-indicator '+(status==='error'?'failed':'')}><Save size={14}/>{status==='guardando'?'Guardando…':status==='editado'?'Cambios pendientes':status==='error'?'Error de guardado':'Guardado en servidor'}</span>
+        <span role="status" aria-live="polite" title="Autoguardado tras 2 segundos sin editar" className={'save-indicator '+(status==='error'?'failed':'')}><Save size={14}/>{status==='guardando'?'Guardando…':status==='editado'?'Pendiente · autoguardado tras 2 s':status==='error'?'Error de guardado':'Guardado en servidor'}</span>
         <button className="toolbar-button" disabled={compiling || applyingAI || status==='guardando'} onClick={()=>void reloadRemote()}>Actualizar proyecto</button>
         <button className="toolbar-button" onClick={()=>void exportProjectZip(project)}><Download size={16}/> Exportar ZIP</button>
         <button className="toolbar-button" onClick={()=>void openHistory()}><Clock3 size={16}/> Historial</button>
