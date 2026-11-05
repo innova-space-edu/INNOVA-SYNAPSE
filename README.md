@@ -58,6 +58,16 @@ bash scripts/audit-dell.sh
 
 La auditoría muestra el estado de los contenedores, conteos de proyectos según formato JSONB, presencia (sin revelar valores) de configuración Cloudflare y modelos/keys de IA, número de respaldos locales y timers visibles. No prueba por sí sola la validez de las API keys ni que un respaldo sea restaurable.
 
+### Opciones en «Por recuperar»
+
+Los proyectos JSONB antiguos con contenido válido ofrecen tres acciones por registro:
+
+- **Recuperar copia**: lee el JSON original y crea **otro** proyecto con identificador nuevo, que puede abrirse inmediatamente. El registro anterior no cambia. El historial de instantáneas del antiguo no se transfiere a la copia.
+- **Exportar ZIP**: descarga los archivos del proyecto antiguo, sin alterar PostgreSQL; no contiene instantáneas históricas ni representa un respaldo completo de la base de datos.
+- **Eliminar**: requiere escribir el UUID completo como confirmación. La API comprueba que el registro **aún sea un JSONB string**, pertenezca al administrador autenticado y solo entonces lo elimina; por la relación ON DELETE CASCADE, también elimina sus instantáneas. Esta acción es irreversible salvo que exista un respaldo completo de PostgreSQL.
+
+Para una recuperación integral de datos/historiales, preferir la migración transaccional con respaldo `bash scripts/repair-jsonb.sh --apply`. Nunca usar «Eliminar» para intentar arreglar un proyecto sin haber comprobado antes si su contenido es recuperable.
+
 **Proyectos antiguos:** si la biblioteca indica registros por recuperar, la sección **Por recuperar** permite ver su nombre y cantidad de archivos sin modificar datos. La migración debe ejecutarla el administrador del Dell solo tras un respaldo verificado:
 
 ```bash

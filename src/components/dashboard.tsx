@@ -4,9 +4,9 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { BookOpenText, ChevronDown, FilePlus2, FileText, FolderOpen, Grid2X2, Import, LayoutList, MoreHorizontal, Plus, Search, Users, AlertTriangle, X } from 'lucide-react';
 import type { SynapseProject } from '@/lib/types';
-import { deleteProject, listProjects, saveProject } from '@/lib/storage';
+import { deleteProject, deleteLegacyProject, loadLegacyProject, listProjects, saveProject } from '@/lib/storage';
 import { newProject } from '@/lib/templates';
-import { importProjectZip } from '@/lib/zip';
+import { exportProjectZip, importProjectZip } from '@/lib/zip';
 import { inspectProjectList, type PendingProject } from '@/lib/project-list';
 
 function reportError(action: string, error: unknown) {
@@ -26,6 +26,7 @@ export function Dashboard() {
   const [creating, setCreating] = useState(false);
   const [incompleteCount, setIncompleteCount] = useState(0);
   const [pending, setPending] = useState<PendingProject[]>([]);
+  const [pendingActionId, setPendingActionId] = useState<string | null>(null);
   const refresh = async () => {
     try {
       const result = inspectProjectList(await listProjects());
@@ -75,6 +76,58 @@ export function Dashboard() {
     try { await deleteProject(project.id); await refresh(); }
     catch (err) { setError(reportError('No fue posible eliminar el proyecto', err)); }
   }
+  async function recoverLegacy(item: PendingProject) {
+    if (!item.id || !item.doubleEncoded || pendingActionId) return;
+    setPendingActionId(item.id); setError('');
+    try {
+      // Explicitly create a NEW project. Never alter the legacy source.
+      const legacy = await loadLegacyProject(item.id);
+      const now = new Date().toISOString();
+      const recovered: SynapseProject = {
+        ...legacy,
+        id: crypto.randomUUID(),
+        name: (legacy.name + ' (recuperado)').slice(0, 200),
+        createdAt: now,
+        updatedAt: now
+      };
+      await saveProject(recovered);
+      await refresh();
+      router.push('/projects/' + recovered.id);
+    } catch (err) {
+      setError(reportError('No fue posible recuperar una copia del proyecto', err));
+    } finally {
+      setPendingActionId(null);
+    }
+  }
+  async function downloadLegacy(item: PendingProject) {
+    if (!item.id || !item.doubleEncoded || pendingActionId) return;
+    setPendingActionId(item.id); setError('');
+    try {
+      await exportProjectZip(await loadLegacyProject(item.id));
+    } catch (err) {
+      setError(reportError('No fue posible exportar el proyecto antiguo', err));
+    } finally {
+      setPendingActionId(null);
+    }
+  }
+  async function removeLegacy(item: PendingProject) {
+    if (!item.id || !item.doubleEncoded || pendingActionId) return;
+    const accepted = window.prompt(
+      'Vas a eliminar permanentemente "' + item.name + '" y sus instantáneas. ' +
+      'Esta operación no tiene opción de deshacer. Exporta un ZIP o guarda un respaldo antes. ' +
+      'Escribe el identificador COMPLETO para confirmar:\n' + item.id
+    );
+    if (accepted !== item.id) return;
+    setPendingActionId(item.id); setError('');
+    try {
+      await deleteLegacyProject(item.id);
+      await refresh();
+    } catch (err) {
+      setError(reportError('No fue posible eliminar el registro antiguo', err));
+    } finally {
+      setPendingActionId(null);
+    }
+  }
   async function rename(project: SynapseProject) {
     const name = prompt('Nuevo nombre del proyecto:', project.name)?.trim();
     if (!name) return;
@@ -119,7 +172,7 @@ export function Dashboard() {
         </div>}
         {busy ? <div className="blank">Cargando proyectos…</div> : section === 'recovery' ? <section className="recovery-section">
           <h2>Registros pendientes de recuperación</h2>
-          <p>Esta sección permite consultar los proyectos creados anteriormente que todavía no pueden abrirse. No modifica ni elimina ningún archivo.</p>
+          <p>Estos registros conservan sus archivos, pero tienen un formato anterior. Puedes recuperar una copia nueva o descargar su ZIP antes de decidir si eliminas el original.</p>
           {pending.length === 0 ? <p>No hay registros pendientes. Los proyectos disponibles aparecen en <button type="button" className="recovery-link" onClick={() => setSection('mine')}>Proyectos creados</button>.</p>
           : <div className="project-list">
               {pending.map(item => <div key={item.key} className="project-row">
@@ -129,13 +182,24 @@ export function Dashboard() {
                   <small>{item.fileCount === undefined ? 'Cantidad de archivos desconocida' : item.fileCount + ' archivos'}{item.id ? ' · ' + item.id : ''}</small>
                 </div>
                 <span className="recovery-state">{item.doubleEncoded ? 'JSONB anterior' : 'Revisión requerida'}</span>
+                {item.doubleEncoded && item.id && <div className="recovery-actions">
+                  <button type="button" onClick={() => void recoverLegacy(item)} disabled={pendingActionId !== null}>
+                    {pendingActionId === item.id ? 'Procesando…' : 'Recuperar copia'}
+                  </button>
+                  <button type="button" onClick={() => void downloadLegacy(item)} disabled={pendingActionId !== null}>
+                    Exportar ZIP
+                  </button>
+                  <button type="button" className="danger" onClick={() => void removeLegacy(item)} disabled={pendingActionId !== null}>
+                    Eliminar
+                  </button>
+                </div>}
               </div>)}
             </div>}
           {pending.length > 0 && <div className="recovery-guidance">
             Para recuperar los proyectos, un administrador debe ejecutar en el Dell el procedimiento que realiza un respaldo verificado antes de modificar la base de datos.
             <code>bash scripts/repair-jsonb.sh --check</code>
             <code>bash scripts/repair-jsonb.sh --apply</code>
-            La recuperación no se ejecuta desde el navegador. Tras completarla, recarga esta página.
+            Si no puedes recuperar una copia desde el navegador, usa estos comandos en el Dell. La migración requiere un respaldo completo previo. Eliminar un registro antiguo también elimina sus instantáneas.
           </div>}
         </section> : section === 'shared' ? <div className="empty-state"><Users size={40}/><h2>Colaboración en preparación</h2><p>Los espacios compartidos requerirán autenticación, permisos y sincronización en el servidor.</p></div>
         : shown.length === 0 ? <div className="empty-state"><FilePlus2 size={43}/><h2>{filter ? 'No hay coincidencias' : 'Comienza tu próxima investigación'}</h2><p>{filter ? 'Prueba otra búsqueda.' : 'Crea un proyecto LaTeX o importa un ZIP exportado de Prism.'}</p>{!filter && <button className="pill primary" onClick={create} disabled={creating}><Plus size={17}/> {creating ? "Creando…" : "Crear proyecto"}</button>}</div>
