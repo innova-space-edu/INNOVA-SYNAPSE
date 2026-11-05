@@ -1,11 +1,37 @@
 'use client';
 import { useEffect, useMemo, useRef } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
-import { StreamLanguage } from '@codemirror/language';
+import { HighlightStyle, StreamLanguage, syntaxHighlighting } from '@codemirror/language';
+import { tags } from '@lezer/highlight';
 import { stex } from '@codemirror/legacy-modes/mode/stex';
 import { type Range } from '@codemirror/state';
 import { Decoration, EditorView, WidgetType } from '@codemirror/view';
 import type { AITextEdit } from '@/lib/ai-edits';
+
+// Cool, high-contrast LaTeX palette inspired by the supplied Prism reference.
+const prismHighlight = HighlightStyle.define([
+  { tag: [tags.tagName, tags.macroName, tags.function(tags.variableName)], color: '#82dce1' },
+  { tag: [tags.atom, tags.number, tags.bool], color: '#b2cbff' },
+  { tag: [tags.bracket, tags.punctuation], color: '#c4b5fd' },
+  { tag: tags.keyword, color: '#d3a6ef' },
+  { tag: [tags.string, tags.special(tags.string)], color: '#a7d8b9' },
+  { tag: [tags.variableName, tags.special(tags.variableName)], color: '#e4d4f4' },
+  { tag: tags.comment, color: '#87939f', fontStyle: 'italic' },
+  { tag: [tags.meta, tags.name], color: '#c4d0dd' },
+  { tag: tags.invalid, color: '#ffa3b4' }
+]);
+const prismTheme = [
+  EditorView.theme({
+    '&': { color: '#e1e5eb', backgroundColor: '#08080a' },
+    '.cm-content': { caretColor: '#c4b5fd' },
+    '.cm-cursor, .cm-dropCursor': { borderLeftColor: '#c4b5fd' },
+    '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': {
+      backgroundColor: '#34304c'
+    },
+    '.cm-matchingBracket': { backgroundColor: '#293c45', outline: '1px solid #527580' }
+  }, { dark: true }),
+  syntaxHighlighting(prismHighlight)
+];
 
 const NO_EDITS: AITextEdit[] = [];
 const BASIC_SETUP = {
@@ -93,7 +119,7 @@ export function LatexCodeEditor({ value, onChange, editable, reviewEdits = NO_ED
     className="cm-theme"
     value={value}
     height="100%"
-    theme="dark"
+    theme={prismTheme}
     editable={editable}
     extensions={extensions}
     onCreateEditor={(view) => { editorView.current = view; }}
