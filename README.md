@@ -142,3 +142,13 @@ Disponible en el código: ventana Compartir, invitaciones por correo con aceptac
 **Antes de desplegar:** respaldar y aplicar db/003-collaboration.sql; después reconstruir web. Configurar los correos permitidos en Cloudflare Access sin hacerlos administradores. El envío opcional utiliza RESEND_API_KEY, SYNAPSE_MAIL_FROM y SYNAPSE_PUBLIC_URL. Si no están configurados, se informa que la invitación se registró sin enviar correo y se puede copiar el enlace.
 
 Procedimiento, alcance, permisos y comprobaciones: [docs/COLABORACION.md](docs/COLABORACION.md).
+
+
+## Visor PDF y recuperación de cambios locales
+El zoom se aplica a las páginas renderizadas con PDF.js (50–200 %); pulsar el porcentaje ajusta al ancho. Ampliar y volver al editor conserva el documento. El worker, fuentes y recursos se sirven desde el Dell, sin CDN externo; predev y prebuild los preparan automáticamente.
+
+El botón Proyectos sale directamente cuando no hay cambios. Con cambios pendientes, permite guardar y volver, o volver conservando una copia local en IndexedDB, aislada por correo y proyecto. Al reabrir, se ofrece recuperar o exportar la copia. Si el servidor tiene otra revisión, la copia local solo se exporta para evitar sobrescribir cambios ajenos. La copia pertenece a ese navegador; no equivale a un respaldo del Dell. Si el almacenamiento local falla, se informa y se ofrece exportar ZIP.
+
+Los errores de guardado muestran el motivo y permiten reintentar incluso tras un fallo previo. Se aceptan solicitudes del origen público detrás del túnel sin confiar en X-Forwarded-Host. Definir SYNAPSE_PUBLIC_URL con el origen HTTPS real sigue siendo la opción preferida. El historial y el registro de compilación muestran errores en pantalla.
+
+Pruebas: npm test incluye aislamiento/recuperación de copias y origen con proxy. npm run test:ui usa datos ficticios para verificar zoom, vista amplia, salida sin guardados innecesarios, salida tras error, recuperación y descarga PDF.

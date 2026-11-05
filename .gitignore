@@ -11,3 +11,9 @@ coverage/
 __pycache__/
 *.pyc
 .vscode/
+
+
+/public/pdfjs/
+
+/test-results/
+/playwright-report/

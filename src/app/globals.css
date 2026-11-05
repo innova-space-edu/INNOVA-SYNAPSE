@@ -165,3 +165,19 @@
 .invitation-list{border:1px solid #61517c;background:#2c2537;border-radius:10px;padding:16px;margin:16px 0}
 .invitation-list h2{font-size:15px}.invitation-list>div{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px;font-size:12px}.invitation-list span{flex:1}
 .collaboration-notice{padding:10px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#3d3042;font-size:12px;flex-shrink:0}.collaboration-notice span{flex:1}
+
+
+/* The PDF surface is the sole scroll owner; pages are rendered at the requested scale. */
+.pdf-panel{min-width:0}
+.pdf-toolbar{height:auto;min-height:55px;flex-wrap:wrap;padding-top:6px;padding-bottom:6px}
+.pdf-controls{flex-wrap:wrap}
+.synapse-pdf-viewer{min-width:100%;color:#25252c}
+.synapse-pdf-pages{display:flex;flex-direction:column;align-items:center;width:max-content;min-width:100%;gap:16px}
+.synapse-pdf-page{position:relative;background:white;box-shadow:0 2px 12px #0002;flex:none;overflow:hidden}
+.synapse-pdf-page canvas{display:block}
+.synapse-pdf-page .textLayer{z-index:1}
+.zoom-reset{border:0;background:transparent;color:#555;cursor:pointer;min-width:42px;padding:4px;font-size:11px}
+.exit-actions{display:flex;flex-wrap:wrap;gap:9px;margin-top:16px}
+.exit-project-dialog::backdrop{background:#0009}
+.work-topbar{height:auto;min-height:58px;flex-wrap:wrap;padding-top:8px;padding-bottom:8px}
+.work-top-right{flex-wrap:wrap;justify-content:flex-end}

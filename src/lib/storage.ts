@@ -4,13 +4,18 @@ import { isUsableProject } from './project-list';
 // Revisions advance only on explicit loads and our own successful writes.
 const revisions = new Map<string,string>();
 const writes = new Map<string,Promise<void>>();
+export const projectRevision = (id: string) => revisions.get(id);
+export class ApiError extends Error {
+  constructor(message: string, readonly status: number) { super(message); this.name = 'ApiError'; }
+}
+export async function loadSession(): Promise<{email:string;canCreate:boolean}> { return api('/api/session'); }
 async function api<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(path, { ...options, cache: 'no-store', credentials: 'same-origin',
     headers: { 'Content-Type':'application/json', ...options?.headers } });
   if (!res.ok) {
     let message = 'Error del servidor SYNAPSE ('+res.status+')';
     try { const data = await res.json(); if (typeof data.error === 'string') message = data.error; } catch {}
-    throw new Error(message);
+    throw new ApiError(message, res.status);
   }
   return await res.json() as T;
 }
@@ -28,7 +33,7 @@ export async function loadProject(id: string): Promise<SynapseProject | undefine
     if (result._revision) revisions.set(id,result._revision);
     return result;
   } catch (error) {
-    if (error instanceof Error && error.message.includes('(404)')) return undefined;
+    if (error instanceof ApiError && error.status === 404) return undefined;
     throw error;
   }
 }
