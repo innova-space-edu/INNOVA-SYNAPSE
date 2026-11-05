@@ -106,3 +106,50 @@
 .ai-mode-label{font-size:10px;color:#bbb3ca}
 .ai-agent-mode:focus-visible{outline:2px solid #a381e2;outline-offset:2px}
 @media(max-width:600px){.ai-mode-label{display:none}}
+
+
+/* 2026-11-05: constrain the *entire* editor flex tree so CodeMirror actually scrolls. */
+.work-panels{overflow:hidden}
+.code-panel{height:100%;min-height:0;overflow:hidden}
+.editor-container{height:0;min-height:0;flex:1 1 0;overflow:hidden;padding-bottom:64px}
+.editor-container > .cm-theme{height:100%!important;max-height:100%;min-height:0;overflow:hidden}
+.editor-container .cm-editor{height:100%!important;min-height:0;max-height:100%;overflow:hidden}
+.editor-container .cm-scroller{
+  min-height:0;max-height:100%;height:100%!important;
+  overflow-y:scroll!important;overflow-x:auto!important;overscroll-behavior:contain;
+  scrollbar-width:thin;scrollbar-color:#6e628c #111116
+}
+.editor-container .cm-content{min-height:100%;padding-bottom:20px}
+.editor-container .cm-scroller::-webkit-scrollbar{width:10px;height:10px}
+.editor-container .cm-scroller::-webkit-scrollbar-thumb{background:#655a7b;border:2px solid #111116;border-radius:8px}
+.editor-container .cm-scroller::-webkit-scrollbar-track{background:#111116}
+
+/* The assistant is an auxiliary compact tool, never a full-height overlay. */
+.code-panel .assistant-dock{left:12px;right:auto;width:min(460px,calc(100% - 24px));max-width:calc(100% - 24px);bottom:8px}
+.code-panel .assistant-expanded{height:min(238px,31dvh)!important;max-height:238px!important;min-height:0}
+.code-panel .assistant-messages{height:0;min-height:0;flex:1 1 0;overflow-y:auto}
+.code-panel .assistant-input{height:50px!important;min-height:50px!important;max-height:50px!important;flex-shrink:0}
+.code-panel .assistant-input textarea{height:34px!important;min-height:34px!important;max-height:34px!important;resize:none!important;overflow-y:auto!important}
+.code-panel .assistant-title{flex:0 0 42px}
+.ai-edit-summary{display:flex;align-items:center;margin-top:8px}
+.ai-edit-summary button{display:inline-flex;gap:6px;align-items:center;font-size:11px;padding:5px 8px;border:1px solid #6f5b9b;background:#342c44;border-radius:6px;color:#eee}
+.ai-edit-reviewing{font-size:11px;color:#b5e5ca}
+
+/* Prism-like visual diff, rendered as decorations inside CodeMirror. */
+.inline-ai-toolbar{position:absolute;z-index:12;top:58px;right:18px;left:auto;display:flex;align-items:center;gap:7px;
+  background:#211f29;border:1px solid #66537c;padding:5px 7px;border-radius:10px;box-shadow:0 5px 24px #0009;
+  max-width:calc(100% - 22px)}
+.inline-ai-toolbar-label{font-size:11px;color:#ddd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-right:4px}
+.inline-ai-toolbar-label b{color:#f1a2a8}.inline-ai-toolbar-label strong{color:#8be5a9}
+.inline-ai-toolbar button{border:1px solid #514b62;border-radius:7px;background:#342b40;color:#ddd;display:flex;align-items:center;justify-content:center;gap:4px;height:29px;min-width:30px;padding:4px 8px}
+.inline-ai-toolbar button:disabled{opacity:.4}
+.inline-ai-toolbar .inline-ai-reject:hover{background:#6d303a;color:white}
+.inline-ai-toolbar .inline-ai-accept{background:#1c5836;color:#c7f4d6;border-color:#3e9863}
+.inline-ai-toolbar .inline-ai-accept:hover{background:#237846;color:white}
+.cm-ai-removal{background:#602a35!important;color:#ffe0e5!important;text-decoration:line-through;text-decoration-color:#d87684}
+.cm-ai-addition{display:block;background:#143522;color:#c7f5d8;border-left:3px solid #369b62;
+  padding:5px 9px;margin:3px 0 5px 0;font:inherit;white-space:normal;min-width:150px;max-width:100%}
+.cm-ai-addition-label{font-size:10px;letter-spacing:.05em;font-weight:700;color:#8ee0a9}
+.cm-ai-addition pre{margin:3px 0 0;max-height:130px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;color:#a8efc0}
+@media(max-width:630px){.inline-ai-toolbar-label{font-size:10px;max-width:125px}
+  .inline-ai-accept span{display:none}.inline-ai-toolbar{right:7px}}
