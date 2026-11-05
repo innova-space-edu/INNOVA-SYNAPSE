@@ -40,7 +40,7 @@ BEGIN
       WHERE jsonb_typeof(file.item) IS DISTINCT FROM 'object'
          OR jsonb_typeof(file.item->'path') IS DISTINCT FROM 'string'
          OR jsonb_typeof(file.item->'content') IS DISTINCT FROM 'string'
-         OR (file.item->>'encoding') NOT IN ('utf8','base64')
+         OR ((file.item->>'encoding') IS DISTINCT FROM 'utf8' AND (file.item->>'encoding') IS DISTINCT FROM 'base64')
     ) OR NOT EXISTS (
       SELECT 1 FROM jsonb_array_elements(parsed->'files') AS file(item)
       WHERE file.item->>'path' = parsed->>'mainFile'
@@ -82,7 +82,7 @@ BEGIN
          WHERE jsonb_typeof(file.item) IS DISTINCT FROM 'object'
             OR jsonb_typeof(file.item->'path') IS DISTINCT FROM 'string'
             OR jsonb_typeof(file.item->'content') IS DISTINCT FROM 'string'
-            OR (file.item->>'encoding') NOT IN ('utf8','base64')
+            OR ((file.item->>'encoding') IS DISTINCT FROM 'utf8' AND (file.item->>'encoding') IS DISTINCT FROM 'base64')
        )
     THEN
       RAISE EXCEPTION 'Instantánea % contiene archivos inválidos; transacción cancelada', item.id;
