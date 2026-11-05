@@ -27,7 +27,7 @@ export function inspectProjectList(value: unknown): {
   return { projects, incompleteCount };
 }
 
-function isUsableProject(item: unknown): item is SynapseProject {
+export function isUsableProject(item: unknown): item is SynapseProject {
   if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
 
   const project = item as Record<string, unknown>;
