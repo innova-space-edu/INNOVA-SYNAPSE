@@ -28,7 +28,7 @@ jobs:
           LATEX_COMPILER_TOKEN: dummy-ci-compile-token
         run: docker compose -f compose.intranet.yaml config --quiet
       - name: Validate Dell installation shell scripts
-        run: bash -n scripts/deploy-dell.sh scripts/check-synapse.sh scripts/smoke-compiler.sh scripts/backup-synapse.sh
+        run: bash -n scripts/deploy-dell.sh scripts/check-synapse.sh scripts/smoke-compiler.sh scripts/backup-synapse.sh scripts/repair-jsonb.sh
 
   selfhost-web-smoke:
     runs-on: ubuntu-latest
@@ -58,3 +58,30 @@ jobs:
           python-version: '3.12'
       - run: python -m py_compile compiler/service.py
       - run: python -m unittest discover -s compiler -p 'test_*.py'
+
+  jsonb-postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: synapse
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: synapse
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U synapse -d synapse"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      - name: Assert project/snapshot JSONB is stored as object, not string
+        env:
+          SYNAPSE_JSONB_TEST_URL: postgres://synapse:ci-only-password@127.0.0.1:5432/synapse
+        run: node scripts/test-jsonb-postgres.mjs
