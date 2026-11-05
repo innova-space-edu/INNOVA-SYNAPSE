@@ -76,3 +76,33 @@
 .ai-reject-button:disabled{opacity:.5;cursor:not-allowed}
 .ai-edits-discarded{font-size:11px;color:#b9b3c4}
 .ai-edit-safety{display:block;margin-top:9px;font-size:10px;color:#bfb5cf}
+
+
+/* The LaTeX canvas owns its scroll; fixed, compact prompt keeps source readable. */
+.editor-container{display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden}
+.editor-container > .cm-theme{flex:1;min-height:0;min-width:0;height:100%}
+.editor-container .cm-editor{display:flex;flex-direction:column;min-height:0;overflow:hidden;height:100%!important}
+.editor-container .cm-scroller{display:flex;flex-direction:row;flex:1;min-height:0;height:100%;overflow-x:auto!important;overflow-y:auto!important;scrollbar-gutter:stable;overscroll-behavior:contain;scrollbar-width:thin}
+.editor-container .cm-content{min-height:100%;min-width:max-content}
+.editor-container .cm-gutters{position:sticky;left:0;z-index:2}
+.latex-editor-loading{flex:1;display:grid;place-items:center;color:#a49aad;font-size:12px;min-height:0}
+.assistant-dock{max-width:100%;max-height:calc(100% - 65px)}
+.assistant-expanded{height:min(390px,54dvh);max-height:450px}
+.assistant-title{flex-shrink:0}
+.assistant-messages{min-height:0;scrollbar-width:thin;overscroll-behavior:contain}
+.assistant-input{flex-shrink:0;height:52px;min-height:52px;max-height:52px}
+.assistant-input textarea,.assistant-expanded .assistant-input textarea{height:36px;min-height:36px;max-height:36px;resize:none;overflow-y:auto;padding:8px 5px;line-height:1.4}
+.assistant-input select{max-width:100px}
+.ai-agent-mode{font-size:11px;max-width:108px;min-width:0;background:transparent;color:#d5cafa;border:1px solid #534d63;border-radius:7px;padding:5px}
+.ai-agent-mode option{background:#25242d;color:#eee}
+@media(max-width:700px){
+  .assistant-expanded{height:min(330px,48dvh)}
+  .assistant-input{gap:3px;padding:5px 6px}
+  .assistant-input select{max-width:78px}
+  .ai-agent-mode{max-width:83px;font-size:10px}
+}
+
+.ai-agent-tools{display:flex;align-items:center;gap:5px;min-width:0}
+.ai-mode-label{font-size:10px;color:#bbb3ca}
+.ai-agent-mode:focus-visible{outline:2px solid #a381e2;outline-offset:2px}
+@media(max-width:600px){.ai-mode-label{display:none}}
