@@ -197,8 +197,11 @@ export function Workspace() {
   function openPdf() {
     if (!pdfBlob) return;
     const objectUrl = URL.createObjectURL(pdfBlob);
-    const opened = window.open(objectUrl, '_blank', 'noopener,noreferrer');
-    if (!opened) { URL.revokeObjectURL(objectUrl); return; }
+    const a = document.createElement('a');
+    a.href = objectUrl;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.append(a); a.click(); a.remove();
     window.setTimeout(() => URL.revokeObjectURL(objectUrl), 120000);
   }
   function startResize(kind:'tree'|'preview', e:React.MouseEvent<HTMLDivElement>) {
