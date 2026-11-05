@@ -136,6 +136,9 @@ export function Workspace() {
     setApplyingAI(true);
     setStatus('guardando');
     try {
+      // The user can restore this precise pre-edit state through Historial.
+      await saveQueue.current;
+      await saveSnapshot(project);
       saveQueue.current = saveQueue.current.catch(() => undefined).then(() => saveProject(revisedProject));
       await saveQueue.current;
       setProject(revisedProject);
@@ -143,7 +146,7 @@ export function Workspace() {
       setCompileMessage('Cambios de IA guardados. Compila nuevamente para actualizar el PDF.');
     } catch {
       setStatus('error');
-      throw new Error('No se pudieron guardar los cambios de IA en PostgreSQL. El archivo original no fue reemplazado.');
+      throw new Error('No se creó la versión previa o no se pudieron guardar los cambios de IA. El archivo original no fue reemplazado.');
     } finally {
       setApplyingAI(false);
     }
