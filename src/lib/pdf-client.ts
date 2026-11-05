@@ -10,6 +10,10 @@ export function pdfBlobFromBase64(base64: string): Blob {
   if (typeof base64 !== 'string' || !base64 || base64.length > 22_000_000) {
     throw new Error('El PDF está vacío o excede el tamaño admitido.');
   }
+  // atob() silently ignores some whitespace; accept only canonical Base64.
+  if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(base64)) {
+    throw new Error('El compilador devolvió un archivo PDF con codificación inválida.');
+  }
   let binary: string;
   try {
     binary = atob(base64);
