@@ -260,22 +260,51 @@ export function Workspace() {
     change(p => ({...p, mainFile:snapshot.mainFile, files:structuredClone(snapshot.files)}));
     setActiveFile(snapshot.mainFile); setShowHistory(false);
   }
-  async function compile() {
-    if (!project || compiling) return;
-    setCompiling(true); setCompileMessage('Compilando documento…'); setShowLog(false);
+  async function compileProject(target: SynapseProject, createVersion: boolean): Promise<void> {
+    setCompiling(true);
+    setCompileMessage('Compilando documento…');
+    setShowLog(false);
     try {
-      await saveProject(project);
-      await saveSnapshot(project);
-      const response = await fetch('/api/compile',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({mainFile:project.mainFile,files:project.files})});
+      if (createVersion) {
+        await saveQueue.current;
+        await saveProject(target);
+        await saveSnapshot(target);
+      }
+      const response = await fetch('/api/compile', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ mainFile:target.mainFile, files:target.files })
+      });
       const data = await response.json() as CompileResult;
-      if (!response.ok || !data.ok || !data.pdf) throw new Error(data.error || 'La compilación falló.' + (data.log? '\n'+data.log:''));
-      // Refuse a success state when the backend returned non-PDF or truncated bytes.
+      if (!response.ok || !data.ok || !data.pdf) {
+        throw new Error(data.error || 'La compilación falló.' + (data.log ? '\\n' + data.log : ''));
+      }
       pdfBlobFromBase64(data.pdf);
-      change(p=>({...p,lastPdf:data.pdf,lastLog:data.log}));
-      setCompileMessage('PDF actualizado'); setShowLog(false);
-    } catch(e) { setCompileMessage(e instanceof Error?e.message:'Error al compilar'); setShowLog(true); }
-    finally { setCompiling(false); }
+      const compiled: SynapseProject = {
+        ...target, updatedAt: new Date().toISOString(),
+        lastPdf: data.pdf, lastLog: data.log
+      };
+      // PDF and source are persisted together, so refreshing the page recovers
+      // exactly the PDF compiled from the accepted version.
+      saveQueue.current = saveQueue.current.catch(() => undefined).then(() => saveProject(compiled));
+      await saveQueue.current;
+      setProject(current => current && current.id === compiled.id
+        ? {...current, lastPdf:compiled.lastPdf, lastLog:compiled.lastLog, updatedAt:compiled.updatedAt}
+        : current);
+      setStatus('guardado');
+      setCompileMessage('PDF actualizado');
+      setShowLog(false);
+    } catch (error) {
+      setCompileMessage(error instanceof Error ? error.message : 'Error al compilar');
+      setShowLog(true);
+      // A failed automatic compile must not undo a successfully saved edit.
+    } finally {
+      setCompiling(false);
+    }
+  }
+
+  async function compile() {
+    if (!project || compiling || applyingAI || review) return;
+    await compileProject(project, true);
   }
   function downloadPdf() {
     if (!pdfBlob || !project) return;
