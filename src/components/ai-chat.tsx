@@ -52,6 +52,7 @@ export function AIChat({ source, activeFile, onApply, onApplyEdits, initialMessa
         ...(edits.length ? {edits, filePath:fileBefore, sourceFingerprint:fingerprint} : {})};
       const updated = [...withUser, answer];
       setMessages(updated); onMessagesChange(updated);
+      if (edits.length) setPreviewIndex(updated.length - 1);
     } catch(e) {
       setError(e instanceof Error ? e.message : 'Error de conexión');
     } finally { setPending(false); }
@@ -75,6 +76,12 @@ export function AIChat({ source, activeFile, onApply, onApplyEdits, initialMessa
     } finally { setApplying(false); }
   }
 
+  function discardProposal(index: number) {
+    const updated = messages.map((item,i) => i === index ? {...item, discarded: true} : item);
+    setMessages(updated);
+    onMessagesChange(updated);
+    setPreviewIndex(null);
+  }
   function latexProposal(content: string): string | null {
     const code = content.match(/```(?:latex|tex)\s*\n([\s\S]*?)```/i)?.[1];
     return code && code.includes('\\documentclass') && code.includes('\\begin{document}') ? code.trim() + '\n' : null;
@@ -99,20 +106,26 @@ export function AIChat({ source, activeFile, onApply, onApplyEdits, initialMessa
             <div className="chat-content">{message.content}</div>
             {hasEdits && <div className="ai-edit-proposal">
               <div className="ai-edit-header"><b>{message.edits!.length} cambio(s) en {message.filePath || 'el archivo activo'}</b>
-                {message.applied ? <span className="ai-edits-applied">Aplicados al servidor</span> :
+                {message.applied ? <span className="ai-edits-applied">Aplicados al servidor · Versión previa en Historial</span> :
+                  message.discarded ? <span className="ai-edits-discarded">Propuesta descartada</span> :
                   <button type="button" onClick={() => setPreviewIndex(previewIndex === index ? null : index)}>
                     {previewIndex === index ? 'Ocultar revisión' : 'Revisar cambios'}
                   </button>}
               </div>
-              {previewIndex === index && !message.applied && <>
+              {previewIndex === index && !message.applied && !message.discarded && <>
                 {message.edits!.map((edit,i) => <div className="ai-edit-diff" key={i}>
                   <small>Modificación {i+1} · Antes</small><pre>{edit.find}</pre>
                   <small>Después</small><pre>{edit.replace || '(eliminar fragmento)'}</pre>
                 </div>)}
-                <button className="apply-button" type="button" disabled={pending || applying}
-                  onClick={() => void applyProposal(index,message)}>
-                  <CornerUpRight size={14}/>{applying ? 'Aplicando…' : 'Aplicar cambios y guardar'}
-                </button>
+                <div className="ai-edit-actions">
+                  <button className="apply-button" type="button" disabled={pending || applying}
+                    onClick={() => void applyProposal(index,message)}>
+                    <CornerUpRight size={14}/>{applying ? 'Aplicando…' : 'Aceptar cambios y guardar'}
+                  </button>
+                  <button className="ai-reject-button" type="button" disabled={pending || applying}
+                    onClick={() => discardProposal(index)}>Descartar</button>
+                </div>
+                <small className="ai-edit-safety">Antes de aplicar, SYNAPSE guardará una versión previa en Historial. El PDF debe recompilarse.</small>
               </>}
             </div>}
             {proposal && <button className="apply-button" onClick={() => {
