@@ -43,7 +43,7 @@ export function Workspace() {
   const [zoom, setZoom] = useState(100);
   const [previewFull, setPreviewFull] = useState(false);
   const [workspaceError, setWorkspaceError] = useState('');
-  const active = project?.files.find(f => f.path === activeFile);
+  const active = project?.files?.find(f => f.path === activeFile);
   const pdfLink = project?.lastPdf ? 'data:application/pdf;base64,' + project.lastPdf : undefined;
   const folders = useMemo(() => [...new Set((project?.files || []).filter(f => f.path.includes('/')).map(f => f.path.split('/')[0]))].sort(), [project]);
 
@@ -53,7 +53,9 @@ export function Workspace() {
       if (!alive) return;
       if (!p) { router.replace('/'); return; }
       setProject(p); setActiveFile(p.mainFile); setStatus('guardado');
-    }).catch(() => setWorkspaceError('No fue posible recuperar este proyecto.'));
+    }).catch((error: unknown) => {
+      if (alive) setWorkspaceError(error instanceof Error ? error.message : 'No fue posible recuperar este proyecto.');
+    });
     return () => { alive = false; };
   }, [params.id, router]);
 
@@ -175,7 +177,17 @@ export function Workspace() {
     const stop = () => { window.removeEventListener('mousemove',move);window.removeEventListener('mouseup',stop); };
     window.addEventListener('mousemove',move); window.addEventListener('mouseup',stop);
   }
-  if (!project) return <div className="loading-screen">{workspaceError || 'Abriendo espacio de trabajo…'}</div>;
+  if (!project || !Array.isArray(project.files)) {
+    if (!workspaceError && (!project || Array.isArray(project.files))) {
+      return <div className="loading-screen">Abriendo espacio de trabajo…</div>;
+    }
+    return <div className="loading-screen">
+      <div style={{ display: 'grid', gap: 16, justifyItems: 'center', maxWidth: 520, textAlign: 'center' }}>
+        <p role="alert">{workspaceError || 'El proyecto no tiene una lista válida de archivos; no se modificaron sus datos.'}</p>
+        <button className="pill primary" onClick={() => router.push('/')}>Volver a proyectos</button>
+      </div>
+    </div>;
+  }
   return <div className="workspace">
     <header className="work-topbar">
       <div className="work-top-left">

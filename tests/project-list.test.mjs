@@ -9,7 +9,7 @@ const { outputText } = ts.transpileModule(source, {
 });
 const exports = {};
 new Function('exports', outputText)(exports);
-const { inspectProjectList } = exports;
+const { inspectProjectList, isUsableProject } = exports;
 
 const valid = {
   id: '1aff4d06-7d68-463b-83b5-38d2aedeb574',
@@ -50,4 +50,20 @@ test('rechaza mensajes mal formados y evita errores del editor', () => {
   const result = inspectProjectList([broken, valid]);
   assert.equal(result.incompleteCount, 1);
   assert.deepEqual(result.projects, [valid]);
+});
+
+test('no abre un proyecto con files ausente aunque el servidor devuelva 200', () => {
+  const missing = { ...valid, files: undefined };
+  const result = inspectProjectList([missing, valid]);
+  assert.equal(isUsableProject(missing), false);
+  assert.equal(result.projects.length, 1);
+  assert.equal(result.incompleteCount, 1);
+  assert.equal(isUsableProject(valid), true);
+});
+
+test('bloquea un registro que declara archivos no utilizables por el editor', () => {
+  assert.equal(isUsableProject({ ...valid, files: [] }), false);
+  assert.equal(isUsableProject({ ...valid, files: [undefined] }), false);
+  assert.equal(isUsableProject({ ...valid, files: [{ path: 'main.tex', content: null, encoding: 'utf8' }] }), false);
+  assert.equal(isUsableProject({ ...valid, mainFile: 'other.tex' }), false);
 });
