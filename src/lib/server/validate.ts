@@ -26,7 +26,8 @@ export function parseProject(value: unknown): SynapseProject {
           (m.edits !== undefined && (!Array.isArray(m.edits) || m.edits.length > 12 || !m.edits.every(isAITextEdit))) ||
           (m.filePath !== undefined && (typeof m.filePath !== 'string' || !validFile(m.filePath))) ||
           (m.sourceFingerprint !== undefined && (typeof m.sourceFingerprint !== 'string' || !/^[0-9a-f]{8}:[0-9]+$/.test(m.sourceFingerprint))) ||
-          (m.applied !== undefined && typeof m.applied !== 'boolean'))))
+          (m.applied !== undefined && typeof m.applied !== 'boolean') ||
+          (m.discarded !== undefined && typeof m.discarded !== 'boolean'))))
   ) throw new Error('El proyecto tiene campos no válidos o excede los límites permitidos');
   return p as SynapseProject;
 }
