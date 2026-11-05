@@ -43,3 +43,12 @@
 .work-projects-link:hover{background:#342c45}
 @media(max-width:800px){.home-nav .nav-count{display:none}.work-projects-link span{display:none}.work-projects-link{padding:7px}}
 @media(max-width:560px){.recovery-notice{flex-wrap:wrap}.recovery-state{font-size:10px;white-space:normal}}
+
+/* Explicit recovery, backup export and delete controls for legacy projects */
+.recovery-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-left:8px}
+.recovery-actions button{font-size:11px;border:1px solid #59535f;background:#34303d;color:#f0edf4;padding:7px 9px;border-radius:7px;white-space:nowrap}
+.recovery-actions button:hover:not(:disabled){background:#45394f}
+.recovery-actions button.danger{border-color:#925760;background:#51303a;color:#ffd9df}
+.recovery-actions button.danger:hover:not(:disabled){background:#6a343f}
+.recovery-actions button:disabled{opacity:.5;cursor:not-allowed}
+@media(max-width:900px){.recovery-section .project-row{flex-wrap:wrap}.recovery-actions{margin-left:0;width:100%;padding:0 0 5px 46px}}
