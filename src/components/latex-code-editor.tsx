@@ -9,6 +9,13 @@ import type { AITextEdit } from '@/lib/ai-edits';
 
 const NO_EDITS: AITextEdit[] = [];
 
+// CodeMirror must measure and scroll its own scrollDOM, not a flex parent.
+// Keep this theme stable across React renders to preserve scrollTop.
+const scrollTheme = EditorView.theme({
+  '&': { height: '100%' },
+  '.cm-scroller': { overflow: 'auto', overflowAnchor: 'none' }
+});
+
 type Props = {
   value: string;
   onChange: (value: string) => void;
@@ -64,7 +71,7 @@ export function LatexCodeEditor({ value, onChange, editable, reviewEdits = NO_ED
   const visualDiff = useMemo(() => EditorView.decorations.of(
     Decoration.set(proposedDecorations(reviewSource, reviewed), true)
   ), [reviewSource, reviewed]);
-  const extensions = useMemo(() => [syntax, visualDiff], [syntax, visualDiff]);
+  const extensions = useMemo(() => [syntax, scrollTheme, visualDiff], [syntax, visualDiff]);
 
   useEffect(() => {
     if (!reviewed.length || !editorView.current) return;
