@@ -37,9 +37,8 @@ export async function POST(req:Request,context:Context){
   const existing=await sql`SELECT id FROM synapse_projects WHERE id=${id}::uuid AND owner_email=${admin.email}`;
   if(!existing.length) return NextResponse.json({error:'Proyecto no autorizado'},{status:404});
   const snapshotId=crypto.randomUUID();
-  const payload=JSON.stringify(input);
   await sql`INSERT INTO synapse_snapshots (id,project_id,owner_email,payload)
-    VALUES (${snapshotId}::uuid,${id}::uuid,${admin.email},${payload}::jsonb)`;
+    VALUES (${snapshotId}::uuid,${id}::uuid,${admin.email},${sql.json(input)}::jsonb)`;
   await sql`DELETE FROM synapse_snapshots WHERE id IN (
     SELECT id FROM synapse_snapshots WHERE project_id=${id}::uuid AND owner_email=${admin.email}
     ORDER BY created_at DESC,id DESC OFFSET 20
