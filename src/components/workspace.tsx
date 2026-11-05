@@ -2,9 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import { useParams, useRouter } from 'next/navigation';
-import CodeMirror from '@uiw/react-codemirror';
-import { StreamLanguage } from '@codemirror/language';
-import { stex } from '@codemirror/legacy-modes/mode/stex';
+import dynamic from 'next/dynamic';
 import { ArrowLeft, Clock3, ChevronDown, ChevronRight, ChevronsLeft, Download, FileCode2,
   FileText, Folder, FolderOpen, Import, Maximize, MoreHorizontal, PanelLeftClose,
   PanelLeftOpen, Play, Plus, Save, Terminal, Trash2, X, ZoomIn, ZoomOut } from 'lucide-react';
@@ -15,7 +13,10 @@ import { pdfBlobFromBase64 } from '@/lib/pdf-client';
 import { applyAITextEdits, sourceFingerprint, type AITextEdit } from '@/lib/ai-edits';
 import type { CompileResult, ProjectSnapshot, SynapseFile, SynapseProject } from '@/lib/types';
 
-const latexLanguage = StreamLanguage.define(stex);
+const LatexCodeEditor = dynamic(
+  () => import('./latex-code-editor').then(module => module.LatexCodeEditor),
+  { ssr: false, loading: () => <div className="latex-editor-loading">Preparando editor LaTeX…</div> }
+);
 const textExt = /\.(tex|bib|sty|cls|bst|txt|keep)$/i;
 const allowedExt = /\.(tex|bib|sty|cls|bst|png|jpe?g|pdf|eps|txt|keep)$/i;
 function toBase64(buffer: ArrayBuffer): string {
@@ -305,7 +306,7 @@ export function Workspace() {
         {!previewFull && <div className="code-panel">
           <div className="code-tab-bar"><div className="code-tab"><FileCode2 size={15}/><span>{activeFile}</span>{activeFile===project.mainFile&&<span className="main-dot" title="Archivo principal"/>}</div><div className="code-tools"><button onClick={()=>setActiveFile(project.mainFile)} title="Ir al principal"><ChevronsLeft size={15}/></button></div></div>
           <div className="editor-container">
-            {active?.encoding === 'utf8' ? <CodeMirror value={active.content} height="100%" theme="dark" editable={!applyingAI} extensions={[latexLanguage]} onChange={updateContent} basicSetup={{lineNumbers:true,foldGutter:true,highlightActiveLine:true,bracketMatching:true,closeBrackets:true}}/>
+            {active?.encoding === 'utf8' ? <LatexCodeEditor value={active.content} editable={!applyingAI} onChange={updateContent}/>
               : <div className="binary-preview"><FileText size={35}/><h3>{activeFile}</h3><p>Archivo de recurso binario. Se incluirá en la compilación y exportación ZIP.</p></div>}
           </div>
           <AIChat source={active?.encoding==='utf8'?active.content:''} activeFile={activeFile} initialMessages={project.chats || []} onMessagesChange={messages=>change(p=>({...p,chats:messages}))} onApply={updateContent} onApplyEdits={applyAIProposal}/>
