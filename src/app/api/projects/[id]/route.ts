@@ -47,8 +47,16 @@ export async function DELETE(req:Request,context:Context){
  const {id}=await context.params;
  if(!validUuid(id)) return NextResponse.json({error:'Id inválido'},{status:400});
  try {
-  const result=await db()`DELETE FROM synapse_projects WHERE id=${id}::uuid AND owner_email=${admin.email} RETURNING id`;
-  if(!result.length) return NextResponse.json({error:'Proyecto no encontrado (404)'},{status:404});
+  // Legacy-only deletion is used from "Por recuperar". Never allow it to
+  // remove a project that has already been repaired or saved normally.
+  const legacyOnly = new URL(req.url).searchParams.get('legacyOnly') === '1';
+  const sql = db();
+  const result = legacyOnly
+    ? await sql`DELETE FROM synapse_projects WHERE id=${id}::uuid AND owner_email=${admin.email} AND jsonb_typeof(document) = 'string' RETURNING id`
+    : await sql`DELETE FROM synapse_projects WHERE id=${id}::uuid AND owner_email=${admin.email} RETURNING id`;
+  if(!result.length) return NextResponse.json({
+    error: legacyOnly ? 'El registro ya no está pendiente de recuperación; actualiza la biblioteca.' : 'Proyecto no encontrado (404)'
+  }, {status: legacyOnly ? 409 : 404});
   return NextResponse.json({ok:true});
  } catch (error) { logProjectDatabaseFailure('delete', error); return NextResponse.json({error:'No se pudo eliminar el proyecto'},{status:503}); }
 }
