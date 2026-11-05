@@ -33,6 +33,12 @@ export async function saveProject(project: SynapseProject): Promise<void> {
 export async function deleteProject(id: string): Promise<void> {
   await api('/api/projects/' + encodeURIComponent(id), { method:'DELETE' });
 }
+/** Only removes a still-double-encoded record. A repaired project cannot be deleted here. */
+export async function deleteLegacyProject(id: string): Promise<void> {
+  await api('/api/projects/' + encodeURIComponent(id) + '?legacyOnly=1',
+    { method:'DELETE' });
+}
+
 export async function listSnapshots(projectId: string): Promise<ProjectSnapshot[]> {
   return api<ProjectSnapshot[]>('/api/projects/' + encodeURIComponent(projectId) + '/snapshots');
 }
