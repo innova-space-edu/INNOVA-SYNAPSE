@@ -6,7 +6,7 @@ import { sanitizeAITextEdits, sourceFingerprint } from '@/lib/ai-edits';
 import { AGENT_MODES, type AIAgentMode } from '@/lib/ai-agents';
 
 const PROVIDERS: {id: Provider; label:string}[] = [
-  {id:'gemini',label:'Gemini'}, {id:'groq',label:'Groq'}, {id:'openrouter',label:'OpenRouter'},
+  {id:'groq',label:'Groq'}, {id:'openrouter',label:'OpenRouter'}, {id:'gemini',label:'Gemini'},
   {id:'sambanova',label:'SambaNova'}, {id:'cerebras',label:'Cerebras'},
   {id:'together',label:'Together'}, {id:'openai',label:'OpenAI'}
 ];
@@ -26,7 +26,7 @@ export function AIChat({
   onReviewProposal, reviewingIndex
 }: Props) {
   const [open, setOpen] = useState(false);
-  const [provider, setProvider] = useState<Provider>('gemini');
+  const [provider, setProvider] = useState<Provider>('groq');
   const [mode, setMode] = useState<AIAgentMode>('edit');
   const [prompt, setPrompt] = useState('');
   const [pending, setPending] = useState(false);

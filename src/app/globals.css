@@ -119,7 +119,7 @@
 .editor-container .cm-scroller::-webkit-scrollbar-track{background:#111116}
 
 /* The assistant is an auxiliary compact tool, never a full-height overlay. */
-.code-panel .assistant-dock{left:12px;right:auto;width:min(460px,calc(100% - 24px));max-width:calc(100% - 24px);bottom:8px}
+.code-panel .assistant-dock{left:12px;right:12px;width:auto;max-width:calc(100% - 24px);bottom:8px}
 .code-panel .assistant-expanded{height:min(238px,31dvh)!important;max-height:238px!important;min-height:0}
 .code-panel .assistant-messages{height:0;min-height:0;flex:1 1 0;overflow-y:auto}
 .code-panel .assistant-input{height:50px!important;min-height:50px!important;max-height:50px!important;flex-shrink:0}
