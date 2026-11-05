@@ -36,8 +36,10 @@ test('accept and reject are small buttons on code, not inside chat',()=>{
 
 test('before an AI edit is accepted, a version is preserved, saved and then compiled',()=>{
   const approve = ws.slice(ws.indexOf('async function applyAIProposal()'), ws.indexOf('function createFile()'));
-  assert.ok(approve.indexOf('await saveSnapshot(project)') < approve.indexOf('await saveProject(revisedProject)'));
-  assert.ok(approve.indexOf('await saveProject(revisedProject)') < approve.indexOf('await compileProject(revisedProject, false)'));
+  const snapshotIndex = approve.indexOf('await saveSnapshot(project)');
+  const saveIndex = approve.indexOf('then(() => saveProject(revisedProject))');
+  const compileIndex = approve.indexOf('await compileProject(revisedProject, false)');
+  assert.ok(snapshotIndex >= 0 && saveIndex > snapshotIndex && compileIndex > saveIndex);
   assert.match(ws,/body: JSON\.stringify\(\{ mainFile:target\.mainFile, files:target\.files \}\)/);
   assert.match(ws,/const compiled: SynapseProject =/);
   assert.match(ws,/await saveQueue\.current/);
