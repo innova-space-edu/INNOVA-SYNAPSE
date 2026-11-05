@@ -13,7 +13,8 @@ services:
     environment:
       NODE_ENV: production
       SYNAPSE_LOCAL_DEV: "false"
-      SYNAPSE_DATABASE_URL: postgres://synapse:${SYNAPSE_DB_PASSWORD:?set SYNAPSE_DB_PASSWORD}@db:5432/synapse
+      # Use the dedicated container DNS name: portal_default also has a service named db.
+      SYNAPSE_DATABASE_URL: postgres://synapse:${SYNAPSE_DB_PASSWORD:?set SYNAPSE_DB_PASSWORD}@synapse-db:5432/synapse
       LATEX_COMPILER_URL: http://compiler:8000
     ports:
       - "127.0.0.1:3410:3000"
