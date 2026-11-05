@@ -12,6 +12,7 @@ import { AIChat } from './ai-chat';
 import { loadProject, saveProject, listSnapshots, saveSnapshot } from '@/lib/storage';
 import { exportProjectZip, safePath } from '@/lib/zip';
 import { pdfBlobFromBase64 } from '@/lib/pdf-client';
+import { applyAITextEdits, sourceFingerprint, type AITextEdit } from '@/lib/ai-edits';
 import type { CompileResult, ProjectSnapshot, SynapseFile, SynapseProject } from '@/lib/types';
 
 const latexLanguage = StreamLanguage.define(stex);
@@ -32,6 +33,7 @@ export function Workspace() {
   const [activeFile, setActiveFile] = useState('main.tex');
   const [status, setStatus] = useState<'cargando'|'editado'|'guardando'|'guardado'|'error'>('cargando');
   const [compiling, setCompiling] = useState(false);
+  const [applyingAI, setApplyingAI] = useState(false);
   const [showTree, setShowTree] = useState(true);
   const [sideTab, setSideTab] = useState<'files'|'chats'>('files');
   const [treeWidth, setTreeWidth] = useState(280);
@@ -113,6 +115,39 @@ export function Workspace() {
   }, []);
   function updateContent(text:string) {
     change(p => ({...p, files:p.files.map(f => f.path === activeFile ? {...f, content:text} : f)}));
+  }
+  async function applyAIProposal(edits: AITextEdit[], path: string, expectedFingerprint: string): Promise<void> {
+    if (!project) throw new Error('El proyecto todavía no está disponible.');
+    if (compiling || applyingAI) throw new Error('Finaliza primero la operación actual.');
+    if (path !== activeFile) throw new Error('Selecciona el archivo ' + path + ' antes de aplicar esta propuesta.');
+    const file = project.files.find(f => f.path === path);
+    if (!file || file.encoding !== 'utf8') throw new Error('El archivo activo no admite edición de texto.');
+    if (sourceFingerprint(file.content) !== expectedFingerprint) {
+      throw new Error('El archivo cambió desde que se generó la propuesta. Solicita una nueva edición para evitar sobrescribir cambios recientes.');
+    }
+    // All replacements are validated in memory BEFORE any file is modified.
+    const revisedSource = applyAITextEdits(file.content, edits);
+    const revisedProject: SynapseProject = {
+      ...project,
+      updatedAt: new Date().toISOString(),
+      lastPdf: undefined,
+      lastLog: undefined,
+      files: project.files.map(f => f.path === path ? {...f, content: revisedSource} : f)
+    };
+    setApplyingAI(true);
+    setStatus('guardando');
+    try {
+      saveQueue.current = saveQueue.current.catch(() => undefined).then(() => saveProject(revisedProject));
+      await saveQueue.current;
+      setProject(revisedProject);
+      setStatus('guardado');
+      setCompileMessage('Cambios de IA guardados. Compila nuevamente para actualizar el PDF.');
+    } catch {
+      setStatus('error');
+      throw new Error('No se pudieron guardar los cambios de IA en PostgreSQL. El archivo original no fue reemplazado.');
+    } finally {
+      setApplyingAI(false);
+    }
   }
   function createFile() {
     const path = prompt('Nombre o ruta del archivo (ej. capitulos/metodo.tex):')?.trim();
@@ -255,10 +290,10 @@ export function Workspace() {
         {!previewFull && <div className="code-panel">
           <div className="code-tab-bar"><div className="code-tab"><FileCode2 size={15}/><span>{activeFile}</span>{activeFile===project.mainFile&&<span className="main-dot" title="Archivo principal"/>}</div><div className="code-tools"><button onClick={()=>setActiveFile(project.mainFile)} title="Ir al principal"><ChevronsLeft size={15}/></button></div></div>
           <div className="editor-container">
-            {active?.encoding === 'utf8' ? <CodeMirror value={active.content} height="100%" theme="dark" extensions={[latexLanguage]} onChange={updateContent} basicSetup={{lineNumbers:true,foldGutter:true,highlightActiveLine:true,bracketMatching:true,closeBrackets:true}}/>
+            {active?.encoding === 'utf8' ? <CodeMirror value={active.content} height="100%" theme="dark" editable={!applyingAI} extensions={[latexLanguage]} onChange={updateContent} basicSetup={{lineNumbers:true,foldGutter:true,highlightActiveLine:true,bracketMatching:true,closeBrackets:true}}/>
               : <div className="binary-preview"><FileText size={35}/><h3>{activeFile}</h3><p>Archivo de recurso binario. Se incluirá en la compilación y exportación ZIP.</p></div>}
           </div>
-          <AIChat source={active?.encoding==='utf8'?active.content:''} initialMessages={project.chats || []} onMessagesChange={messages=>change(p=>({...p,chats:messages}))} onApply={updateContent}/>
+          <AIChat source={active?.encoding==='utf8'?active.content:''} activeFile={activeFile} initialMessages={project.chats || []} onMessagesChange={messages=>change(p=>({...p,chats:messages}))} onApply={updateContent} onApplyEdits={applyAIProposal}/>
         </div>}
         {!previewFull && <div className="drag-handle" onMouseDown={e=>startResize('preview',e)} title="Redimensionar PDF"/>}
         <section className="pdf-panel" style={previewFull?{flex:1}:{width:pdfWidth+'%'}}>
