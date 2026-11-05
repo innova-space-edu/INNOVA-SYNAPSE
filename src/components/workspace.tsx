@@ -37,7 +37,7 @@ export function Workspace() {
   const params = useParams<{id:string}>();
   const uploadRef = useRef<HTMLInputElement>(null);
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
-  const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autosaveTimer = useRef<number | null>(null);
   const [project, setProject] = useState<SynapseProject | null>(null);
   const [activeFile, setActiveFile] = useState('main.tex');
   const [status, setStatus] = useState<'cargando'|'editado'|'guardando'|'guardado'|'error'>('cargando');
