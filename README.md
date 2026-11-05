@@ -121,3 +121,17 @@ bash scripts/audit-dell.sh
 ```
 
 Si un modelo sigue devolviendo 502, revisar API key, identificador de modelo, endpoint y cuota. No compartir credenciales ni tokens.
+
+## Revisión de cambios directamente sobre el código (noviembre de 2026)
+
+El asistente trabaja como una herramienta compacta y no debe tapar el editor. Al recibir una propuesta de edición LaTeX, SYNAPSE contrae automáticamente el chat y muestra sobre el archivo activo:
+
+- Texto **rojo**: fragmento original que se reemplazará.
+- Texto **verde**: contenido nuevo propuesto, visualizado por CodeMirror sin modificar el documento.
+- Controles **✕ Rechazar** y **✓ Aceptar** junto a la cabecera del editor.
+
+Al aceptar se comprueba la huella del archivo y la unicidad de los fragmentos, se guarda una instantánea anterior en Historial, se persiste la modificación en la base de datos propia de SYNAPSE y se inicia automáticamente la compilación PDF sobre la versión aceptada. Si el compilador falla, el cambio guardado no se revierte y se mantiene el mensaje de error en el registro. Al rechazar se conserva el código original. El asistente conserva mensajes cortos en vez de una vista de diferencias extensa dentro del chat.
+
+El área CodeMirror posee un contenedor de altura acotada y scroll vertical independiente del PDF. El panel desplegado del asistente tiene altura máxima de 238 px y su entrada no supera 34 px; los mensajes tienen scroll interno.
+
+**Verificación requerida en producción:** abrir documento largo, desplazar el código, generar una propuesta con Groq, comprobar colores rojo/verde y controles ✓/✕, aceptar, esperar compilación y refrescar para comprobar que texto y PDF se conservaron. Esta validación de navegador es distinta de las pruebas automáticas del repositorio.
