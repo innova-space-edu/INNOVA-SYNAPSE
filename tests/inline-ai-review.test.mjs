@@ -10,7 +10,7 @@ const css = readFileSync(new URL('../src/app/globals.css',import.meta.url),'utf8
 test('source editor can scroll vertically independent of PDF preview',()=>{
   assert.match(css,/\.code-panel\{height:100%;min-height:0;overflow:hidden\}/);
   assert.match(css,/\.editor-container\{height:0;min-height:0;flex:1 1 0/);
-  assert.match(css,/overflow-y:scroll!important/);
+  assert.match(css,/overflow-y:auto!important/);
   assert.match(ws,/reviewEdits=\{review\?\.filePath === activeFile \? review\.edits : \[\]\}/);
 });
 
