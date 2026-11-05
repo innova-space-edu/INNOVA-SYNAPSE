@@ -101,3 +101,8 @@
   .assistant-input select{max-width:78px}
   .ai-agent-mode{max-width:83px;font-size:10px}
 }
+
+.ai-agent-tools{display:flex;align-items:center;gap:5px;min-width:0}
+.ai-mode-label{font-size:10px;color:#bbb3ca}
+.ai-agent-mode:focus-visible{outline:2px solid #a381e2;outline-offset:2px}
+@media(max-width:600px){.ai-mode-label{display:none}}
