@@ -25,6 +25,8 @@ export async function POST(req: Request) {
     let input: { provider?: string; prompt?: string; source?: string; filePath?: string; mode?: string; lastLog?: string; history?: {role: string;content: string}[] };
     try { input = JSON.parse(raw); }
     catch { return NextResponse.json({error:'La solicitud del asistente no contiene JSON válido.'},{status:400}); }
+    if (!input || typeof input !== 'object' || Array.isArray(input))
+      return NextResponse.json({error:'Formato de solicitud no admitido.'},{status:400});
     if (!input.provider || !(input.provider in providers)) return NextResponse.json({ error: 'Proveedor no admitido' }, { status: 400 });
     if (typeof input.prompt !== 'string' || input.prompt.length < 1 || input.prompt.length > 6000)
       return NextResponse.json({ error: 'Mensaje inválido' }, { status: 400 });
@@ -99,7 +101,9 @@ export async function POST(req: Request) {
       else if (resp.status === 429) issue = 'Límite de uso alcanzado. Prueba otro proveedor o inténtalo más tarde.';
       else if (resp.status === 404) issue = 'Modelo o endpoint no encontrado. Revisa la variable MODEL del Dell.';
       else if (!data) issue = 'El proveedor devolvió HTML o una respuesta que no es JSON. Comprueba API, modelo y conectividad.';
-      else if (typeof providerError.message === 'string') issue = providerError.message.slice(0,240);
+      else if (resp.status === 400) issue = 'El proveedor rechazó el formato de solicitud o el modelo seleccionado.';
+      else if (typeof providerError.code === 'string' && /^[a-z0-9_-]{1,40}$/i.test(providerError.code))
+        issue = 'Error de proveedor (' + providerError.code + ').';
       return NextResponse.json({ error: provider + ': ' + issue }, { status: 502 });
     }
     const choices = Array.isArray(result.choices) ? result.choices : [];
